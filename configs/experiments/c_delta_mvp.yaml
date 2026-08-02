@@ -1,0 +1,11 @@
+run_dir: outputs/c_delta
+matched_dir: outputs/act/matched
+split_col: split_domain
+n_pca: 128
+n_latents: 256
+topk: 32
+lr: 0.001
+batch_size: 256
+steps: 4000
+lambda_delta: 2.0
+seed: 0

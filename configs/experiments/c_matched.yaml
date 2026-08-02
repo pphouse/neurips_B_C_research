@@ -1,0 +1,9 @@
+table: data/brca1_variants.parquet
+chr17_fasta: /home/azureuser/evo/evo2/notebooks/brca1/GRCh37.p13_chr17.fna.gz
+model: evo2_7b
+layer: blocks.26.mlp.l3
+lora_ckpt: outputs/c_lora/lora_ckpt.pt
+window_bp: 1024
+out_dir: outputs/act/matched
+batch_variants: 8
+seed: 0
