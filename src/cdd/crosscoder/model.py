@@ -95,10 +95,28 @@ class SharedPrivateCrosscoder(nn.Module):
         )
 
     @torch.no_grad()
-    def encode_shared(self, x_dna, x_prot):
+    def encode_shared(self, x_dna, x_prot, sparse: bool = True):
+        """Return shared codes for both modalities. sparse=True applies BatchTopK
+        (interpretable feature activations); sparse=False returns the dense ReLU codes
+        (used for retrieval / probing, on which the alignment loss operates)."""
         zs_d, _ = self.dna.encode(x_dna)
         zs_p, _ = self.prot.encode(x_prot)
-        return batch_topk(zs_d, self.cfg.topk_shared), batch_topk(zs_p, self.cfg.topk_shared)
+        if sparse:
+            return batch_topk(zs_d, self.cfg.topk_shared), batch_topk(zs_p, self.cfg.topk_shared)
+        return zs_d, zs_p
+
+    @torch.no_grad()
+    def encode_all(self, x_dna, x_prot):
+        """Dense shared + sparse shared + sparse private codes for evaluation."""
+        zs_d, zp_d = self.dna.encode(x_dna)
+        zs_p, zp_p = self.prot.encode(x_prot)
+        return dict(
+            shared_dna_dense=zs_d, shared_prot_dense=zs_p,
+            shared_dna=batch_topk(zs_d, self.cfg.topk_shared),
+            shared_prot=batch_topk(zs_p, self.cfg.topk_shared),
+            priv_dna=batch_topk(zp_d, self.cfg.topk_private),
+            priv_prot=batch_topk(zp_p, self.cfg.topk_private),
+        )
 
 
 def nmse(x, xhat):

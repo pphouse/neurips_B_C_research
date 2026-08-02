@@ -10,6 +10,8 @@ from sklearn.preprocessing import StandardScaler
 
 
 def ridge_spearman(Xtr, ytr, Xte, yte, alpha=10.0):
+    if len(Xtr) < 5 or len(Xte) < 3:
+        return float("nan"), None
     sc = StandardScaler().fit(Xtr)
     m = Ridge(alpha=alpha).fit(sc.transform(Xtr), ytr)
     pred = m.predict(sc.transform(Xte))
@@ -24,7 +26,9 @@ def logistic_auroc(Xtr, ytr, Xte, yte, C=1.0):
 
 
 def cca_transform(Xtr_a, Xtr_b, Xte_a, Xte_b, n_comp=16):
-    n_comp = min(n_comp, Xtr_a.shape[1], Xtr_b.shape[1])
+    if min(Xtr_a.shape[0], Xte_a.shape[0]) < 3:
+        raise ValueError("too few samples for CCA")
+    n_comp = min(n_comp, Xtr_a.shape[1], Xtr_b.shape[1], Xtr_a.shape[0] - 1)
     cca = CCA(n_components=n_comp, max_iter=1000)
     cca.fit(Xtr_a, Xtr_b)
     Za_tr, _ = cca.transform(Xtr_a, Xtr_b)

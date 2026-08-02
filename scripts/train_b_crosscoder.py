@@ -62,7 +62,7 @@ def main():
         # ramp alignment/contrast/orth in after reconstruction warmup
         ramp = min(1.0, max(0.0, (step - warmup) / max(1, 0.3 * steps)))
         wnow = dict(w)
-        for k in ("align", "contrast", "orth"):
+        for k in ("align", "orth"):
             wnow[k] = w[k] * ramp
         loss, parts = crosscoder_loss(out, Xd_tr[idx], Xp_tr[idx], wnow)
         opt.zero_grad(); loss.backward()

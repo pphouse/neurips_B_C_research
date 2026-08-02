@@ -1,8 +1,8 @@
 run_dir: outputs/b_mvp
 evo2_dir: outputs/act/evo2
 esm_dir: outputs/act/esm
-dna_layer: blocks.16.mlp.l3      # finalized by layer_probe on full data
-prot_layer: L30
+dna_layer: blocks.26.mlp.l3
+prot_layer: L18
 pooling: exact
 split_col: split_position
 n_pca: 128
@@ -13,6 +13,6 @@ topk_private: 24
 lr: 0.001
 batch_size: 256
 steps: 6000
-warmup_frac: 0.3
-loss_weights: {rec: 1.0, align: 0.3, contrast: 0.3, orth: 0.1, temp: 0.1}
+warmup_frac: 0.2
+loss_weights: {rec: 1.0, align: 0.1, contrast: 1.0, orth: 0.1, temp: 0.1}
 seed: 0

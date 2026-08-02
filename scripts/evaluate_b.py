@@ -28,17 +28,19 @@ def load_model(run_dir, dev):
 
 
 def codes(model, Xd, Xp, dev):
+    """Returns sparse shared (zs_d/zs_p), sparse private (zp_d/zp_p),
+    and dense shared (zs_d_dense/zs_p_dense) codes as numpy arrays."""
     with torch.no_grad():
-        out = model(torch.tensor(Xd, device=dev), torch.tensor(Xp, device=dev))
-        zs_d = out["zs_d"].cpu().numpy()
-        zs_p = out["zs_p"].cpu().numpy()
-        zp_d = out["zp_d"].cpu().numpy()
-        zp_p = out["zp_p"].cpu().numpy()
-    return zs_d, zs_p, zp_d, zp_p
+        a = model.encode_all(torch.tensor(Xd, device=dev), torch.tensor(Xp, device=dev))
+    n = {k: v.cpu().numpy() for k, v in a.items()}
+    return (n["shared_dna"], n["shared_prot"], n["priv_dna"], n["priv_prot"],
+            n["shared_dna_dense"], n["shared_prot_dense"])
 
 
-def enrichment(z, labels, label_names):
-    """For each latent, AUROC of latent activation predicting each binary annotation."""
+def enrichment(z, labels, label_names, thresh=0.70):
+    """For each latent, AUROC of latent activation predicting each binary annotation.
+    Returns best latent, and count of latents that are significantly enriched
+    (AUROC >= thresh, i.e. the latent fires preferentially on the annotated class)."""
     res = {}
     active = (z > 0)
     for name, y in zip(label_names, labels):
@@ -56,8 +58,14 @@ def enrichment(z, labels, label_names):
             except Exception:
                 aucs.append(np.nan)
         aucs = np.array(aucs)
-        res[name] = dict(best_latent=int(np.nanargmax(np.abs(aucs - 0.5)) if np.isfinite(aucs).any() else -1),
-                         best_auroc=float(np.nanmax(aucs)) if np.isfinite(aucs).any() else float("nan"))
+        finite = np.isfinite(aucs)
+        res[name] = dict(
+            best_latent=int(np.nanargmax(aucs)) if finite.any() else -1,
+            best_auroc=float(np.nanmax(aucs)) if finite.any() else float("nan"),
+            n_enriched=int(np.nansum(aucs >= thresh)),
+            n_active_latents=int(finite.sum()),
+            aucs=[None if not np.isfinite(a) else round(float(a), 3) for a in aucs],
+        )
     return res
 
 
@@ -83,14 +91,18 @@ def main():
         tr, te = sp == "train", sp == "test"
         if te.sum() < 20:
             continue
-        zs_d, zs_p, zp_d, zp_p = codes(model, pdd.dna, pdd.prot, dev)
+        zs_d, zs_p, zp_d, zp_p, zsd_dense, zsp_dense = codes(model, pdd.dna, pdd.prot, dev)
 
-        # ---- cross-modal retrieval on test (shared codes) ----
-        ret_cc = retrieval_recall(zs_d[te], zs_p[te])
+        # ---- cross-modal retrieval on test (dense shared codes) ----
+        ret_cc = retrieval_recall(zsd_dense[te], zsp_dense[te])
+        ret_cc_sparse = retrieval_recall(zs_d[te], zs_p[te])
         # CCA baseline retrieval
-        cca, _, Za_te, Zb_te = cca_transform(pdd.dna[tr], pdd.prot[tr], pdd.dna[te], pdd.prot[te],
-                                             n_comp=cfg.get("k_shared", 32))
-        ret_cca = retrieval_recall(Za_te, Zb_te)
+        try:
+            cca, _, Za_te, Zb_te = cca_transform(pdd.dna[tr], pdd.prot[tr], pdd.dna[te], pdd.prot[te],
+                                                 n_comp=cfg.get("k_shared", 32))
+            ret_cca = retrieval_recall(Za_te, Zb_te)
+        except Exception:
+            ret_cca = {"R@1": float("nan"), "R@10": float("nan"), "n": int(te.sum())}
 
         # ---- DMS prediction ----
         y = meta["dms_score"].to_numpy()
@@ -101,15 +113,27 @@ def main():
         dms["prot_only"] = ridge_spearman(pdd.prot[trk], y[trk], pdd.prot[tek], y[tek])[0]
         concat = np.concatenate([pdd.dna, pdd.prot], 1)
         dms["concat"] = ridge_spearman(concat[trk], y[trk], concat[tek], y[tek])[0]
-        dms["shared_code"] = ridge_spearman(np.concatenate([zs_d, zs_p], 1)[trk], y[trk],
-                                            np.concatenate([zs_d, zs_p], 1)[tek], y[tek])[0]
-        dms["shared_dna_code"] = ridge_spearman(zs_d[trk], y[trk], zs_d[tek], y[tek])[0]
+        sh = np.concatenate([zsd_dense, zsp_dense], 1)
+        dms["shared_code"] = ridge_spearman(sh[trk], y[trk], sh[tek], y[tek])[0]
+        dms["shared_code_sparse"] = ridge_spearman(
+            np.concatenate([zs_d, zs_p], 1)[trk], y[trk],
+            np.concatenate([zs_d, zs_p], 1)[tek], y[tek])[0]
+        dms["shared_dna_code"] = ridge_spearman(zsd_dense[trk], y[trk], zsd_dense[tek], y[tek])[0]
         # CCA components probe
-        _, Za_all_tr, _, _ = cca_transform(pdd.dna[trk], pdd.prot[trk], pdd.dna[tek], pdd.prot[tek],
-                                           n_comp=cfg.get("k_shared", 32))
-        cca2, Zc_tr, Zc_te, _ = cca_transform(pdd.dna[trk], pdd.prot[trk], pdd.dna[tek], pdd.prot[tek],
-                                              n_comp=cfg.get("k_shared", 32))
-        dms["cca"] = ridge_spearman(Zc_tr, y[trk], Zc_te, y[tek])[0]
+        try:
+            cca2, Zc_tr, Zc_te, _ = cca_transform(pdd.dna[trk], pdd.prot[trk], pdd.dna[tek], pdd.prot[tek],
+                                                  n_comp=cfg.get("k_shared", 32))
+            dms["cca"] = ridge_spearman(Zc_tr, y[trk], Zc_te, y[tek])[0]
+        except Exception:
+            dms["cca"] = float("nan")
+        # PLS baseline (predict DMS from concat via latent factors)
+        try:
+            from sklearn.cross_decomposition import PLSRegression
+            npls = min(cfg.get("k_shared", 32), concat.shape[1] - 1)
+            pls = PLSRegression(n_components=npls).fit(concat[trk], y[trk])
+            dms["pls"] = float(spearmanr(pls.predict(concat[tek]).ravel(), y[tek]).correlation)
+        except Exception:
+            dms["pls"] = float("nan")
         # external predictors (reference)
         ext = {}
         for col, sign in [("cadd", 1), ("phylop", 1), ("polyphen2", 1), ("sift", -1)]:
@@ -120,7 +144,7 @@ def main():
 
         results[split_col] = dict(
             n_test=int(te.sum()),
-            retrieval_crosscoder=ret_cc, retrieval_cca=ret_cca,
+            retrieval_crosscoder=ret_cc, retrieval_crosscoder_sparse=ret_cc_sparse, retrieval_cca=ret_cca,
             dms=dms, dms_external=ext,
         )
         print(f"[{split_col}] retrieval CC R@1={ret_cc['R@1']:.3f} CCA R@1={ret_cca['R@1']:.3f} | "
@@ -133,10 +157,10 @@ def main():
     sp = meta["split_position"].to_numpy()
     trc = (sp == "train") & keepc
     tec = (sp == "test") & keepc
-    zs_d, zs_p, _, _ = codes(model, pdd.dna, pdd.prot, dev)
+    zs_d, zs_p, _, _, zsd_dense, zsp_dense = codes(model, pdd.dna, pdd.prot, dev)
     clin = {}
     if tec.sum() > 10 and len(np.unique(yc[tec])) == 2:
-        feat = np.concatenate([zs_d, zs_p], 1)
+        feat = np.concatenate([zsd_dense, zsp_dense], 1)
         clin["shared_code"] = logistic_auroc(feat[trc], yc[trc], feat[tec], yc[tec])[0]
         clin["dna_only"] = logistic_auroc(pdd.dna[trc], yc[trc], pdd.dna[tec], yc[tec])[0]
         clin["prot_only"] = logistic_auroc(pdd.prot[trc], yc[trc], pdd.prot[tec], yc[tec])[0]
@@ -156,7 +180,7 @@ def main():
     ]
     names = ["domain_RING", "domain_BRCT", "func_LOF"]
     results["enrichment_shared_dna"] = enrichment(zs_d, labels, names)
-    _, _, zp_d, zp_p = codes(model, pdd.dna, pdd.prot, dev)
+    _, _, zp_d, zp_p, _, _ = codes(model, pdd.dna, pdd.prot, dev)
     results["enrichment_private_dna"] = enrichment(zp_d, labels, names)
     results["enrichment_private_prot"] = enrichment(zp_p, labels, names)
 
