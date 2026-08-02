@@ -200,10 +200,11 @@ interpretability.} The shared \emph{representation} predicts loss-of-function an
 (Fig.~\ref{fig:results}c), but individual sparse latents are only weakly annotation-selective,
 so we report collective probes rather than claim monosemantic features.
 \textbf{(iv)~Alignment $\neq$ causal exchange.} Representational alignment (cosine \cosDms{})
-does not translate into an interchangeable causal handle: our activation injection moves ESM-2
-in a DMS-correlated direction but is non-specific in Evo\,2's likelihood. This may reflect the
-difficulty of steering Evo\,2's long-convolutional stack with a single-position edit as much
-as an absence of shared causal structure, and deserves dedicated study. \textbf{(v)~Scope.}
+does not translate into an interchangeable causal handle: our activation injection produces
+only a marginal, non-significant DMS-correlated trend in ESM-2 and is non-specific in Evo\,2's
+likelihood. This may reflect the difficulty of steering Evo\,2's long-convolutional stack with
+a single-position edit as much as an absence of shared causal structure, and deserves dedicated
+study with richer interventions. \textbf{(v)~Scope.}
 The paired-delta design assumes a defined variant position in both models (missense SNVs);
 splice/indel variants can only be analyzed through the DNA branch. Methodologically,
 CentralDogma-$\Delta$CC combines deep-CCA-style alignment with a shared--private sparse
@@ -211,10 +212,12 @@ autoencoder; its novelty is the cross-modal biological setting and the variant-d
 rather than the individual components.
 
 \section{Conclusion}
-Paired variant deltas plus a shared--private crosscoder expose sparse, causally active
-mechanisms shared between a genomic and a protein foundation model, and separate them from
-modality-specific ones---a step toward mechanistic, cross-modal interpretability of biological
-foundation models.
+Paired variant deltas plus a learned cross-modal alignment expose a shared functional axis
+between a genomic and a protein foundation model---beating linear CCA on retrieval and function
+prediction and partially transferring across protein domains---while interpretable sparse codes
+separate shared from modality-specific structure. Turning this representational alignment into a
+causal handle, and scaling beyond a single gene, are the clear next steps toward mechanistic,
+cross-modal interpretability of biological foundation models.
 
 \small
 \bibliographystyle{plainnat}
