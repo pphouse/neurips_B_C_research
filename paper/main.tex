@@ -139,7 +139,7 @@ reconstruction dictionary and structure analysis. The training objective is
 \mathcal{L}= \underbrace{\mathrm{NMSE}_{\mathrm{DNA}}+\mathrm{NMSE}_{\mathrm{PROT}}}_{\text{reconstruction}}
 +\lambda_{c}\,\mathcal{L}_{\text{InfoNCE}}(a_{\mathrm{DNA}},a_{\mathrm{PROT}})
 +\lambda_{a}\,\|\bar z^{\mathrm{DNA}}_{s}-\bar z^{\mathrm{PROT}}_{s}\|^2
-+\lambda_{o}\,\big(\mathrm{Cov}(z^{\mathrm{DNA}}_s,z^{\mathrm{DNA}}_p)+\mathrm{Cov}(z^{\mathrm{PROT}}_s,z^{\mathrm{PROT}}_p)\big),
++\lambda_{o}\,\mathcal{L}_{\perp}(z_s,z_p),
 \]
 The InfoNCE term aligns the linear embeddings $a_m$ so that row $i$ of the DNA embedding
 retrieves row $i$ of the protein embedding; because all variants are in BRCA1, negatives are
