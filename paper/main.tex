@@ -137,18 +137,21 @@ $a_m$ as the shared representation for retrieval and probing, and the sparse cod
 reconstruction dictionary and structure analysis. The training objective is
 \[
 \mathcal{L}= \underbrace{\mathrm{NMSE}_{\mathrm{DNA}}+\mathrm{NMSE}_{\mathrm{PROT}}}_{\text{reconstruction}}
++\lambda_{c}\,\mathcal{L}_{\text{InfoNCE}}(a_{\mathrm{DNA}},a_{\mathrm{PROT}})
 +\lambda_{a}\,\|\bar z^{\mathrm{DNA}}_{s}-\bar z^{\mathrm{PROT}}_{s}\|^2
-+\lambda_{c}\,\mathcal{L}_{\text{InfoNCE}}(z^{\mathrm{DNA}}_s,z^{\mathrm{PROT}}_s)
 +\lambda_{o}\,\big(\mathrm{Cov}(z^{\mathrm{DNA}}_s,z^{\mathrm{DNA}}_p)+\mathrm{Cov}(z^{\mathrm{PROT}}_s,z^{\mathrm{PROT}}_p)\big),
 \]
-with $\bar z$ the $\ell_2$-normalized shared code. The InfoNCE term makes row $i$ of the DNA
-shared code retrieve row $i$ of the protein shared code; because all variants are in BRCA1,
-negatives are in-gene and retrieval cannot exploit gene identity. Orthogonality decorrelates
-shared from private latents so that private codes capture modality-specific structure.
+The InfoNCE term aligns the linear embeddings $a_m$ so that row $i$ of the DNA embedding
+retrieves row $i$ of the protein embedding; because all variants are in BRCA1, negatives are
+in-gene and retrieval cannot exploit gene identity. A weak $\ell_2$ term ($\lambda_a$) keeps
+the sparse shared codes $z_s$ consistent across modalities for interpretability, and
+orthogonality decorrelates shared from private codes. As our ablation shows, the retrieval and
+DMS gains come from $a_m$; the sparse codes $z_s$ serve the biological probing and
+shared-axis analyses, not retrieval.
 
-\paragraph{Causal intervention.} For shared latent $f$, its DNA decoder column
-$D^{\mathrm{DNA}}_{s}[:,f]$ (rescaled to raw activation units) is a direction in Evo\,2's
-residual stream; the protein column is a direction in ESM-2's. During a variant forward pass
+\paragraph{Causal intervention.} For a direction $u$ in the shared alignment space (e.g.\ the
+DMS-predictive direction), we map it into each model's raw activation space through that
+model's alignment encoder, and during a variant forward pass
 we subtract the latent's reconstructed contribution at the variant position and re-score,
 in each model, comparing against a matched-norm random direction.
 
