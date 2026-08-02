@@ -58,6 +58,8 @@ def main():
         "cosCross": f(axis.get("cos_cross")), "cosRand": f(axis.get("cos_random_mean")),
         "cosRandPctile": f(axis.get("cos_random_p95")),
         "esmCausalCorr": f(causal.get("corr_esm_plus_dms")), "causalN": causal.get("n", 40),
+        "esmCausalP": f(causal.get("p_esm_plus_dms"), 2), "evoCausalCorr": f(causal.get("corr_evo_plus_dms")),
+        "evoCausalP": f(causal.get("p_evo_plus_dms"), 2),
     }
     # ---- Research C (DeltaEvo) macros ----
     ec = L("outputs/c_delta/eval_c.json"); cb2 = L("outputs/c_delta/c_baseline.json")
@@ -140,12 +142,13 @@ def main():
                 "across modalities; different properties $\\Rightarrow$ different axes.")
     body.append("\n\n\\paragraph{Causal probing (a negative result).} We test whether this alignment "
                 "yields a causal handle by injecting the shared functional direction at the variant "
-                "position and re-scoring. Single-position activation edits do \\emph{not} give "
-                "reliable causal control in either model: on Evo\\,2's likelihood the effect is "
-                "indistinguishable from a matched-norm random direction, and on ESM-2 we see only a "
-                f"marginal, non-significant DMS-correlated trend (Spearman {macros['esmCausalCorr']}, "
-                f"$n{{=}}\\causalN{{}}$, $p{{\\approx}}0.11$). Representational alignment does not imply "
-                "an interchangeable causal handle---a caution for cross-model steering, and an open "
+                f"position and re-scoring ($n{{=}}\\causalN{{}}$ held-out variants). Single-position "
+                "activation edits do \\emph{not} give reliable causal control in either model: the "
+                "score shift is uncorrelated with the variant's true effect and indistinguishable from "
+                f"a matched-norm random direction (ESM-2 Spearman {macros['esmCausalCorr']}, "
+                f"$p{{=}}{macros['esmCausalP']}$; Evo\\,2 {macros['evoCausalCorr']}, "
+                f"$p{{=}}{macros['evoCausalP']}$). Representational alignment does not imply an "
+                "interchangeable causal handle---a caution for cross-model steering, and an open "
                 "question of whether richer interventions would succeed.")
     with open("paper/results_body.tex", "w") as fh:
         fh.write("".join(body))
