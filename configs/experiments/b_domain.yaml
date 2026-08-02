@@ -1,0 +1,18 @@
+run_dir: outputs/b_domain
+evo2_dir: outputs/act/evo2
+esm_dir: outputs/act/esm
+dna_layer: blocks.26.mlp.l3
+prot_layer: L18
+pooling: exact
+split_col: split_domain      # train on BRCT, test on RING; PCA/std fit on BRCT only
+n_pca: 128
+k_shared: 64
+k_private: 64
+topk_shared: 24
+topk_private: 24
+lr: 0.001
+batch_size: 256
+steps: 6000
+warmup_frac: 0.2
+loss_weights: {rec: 1.0, align: 0.1, contrast: 1.0, orth: 0.1, temp: 0.1}
+seed: 0
