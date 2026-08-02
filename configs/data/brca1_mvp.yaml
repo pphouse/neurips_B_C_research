@@ -1,0 +1,9 @@
+gene: BRCA1
+sge_xlsx: /home/azureuser/evo/evo2/notebooks/brca1/41586_2018_461_MOESM3_ESM.xlsx
+chr17_fasta: /home/azureuser/evo/evo2/notebooks/brca1/GRCh37.p13_chr17.fna.gz
+protein_fasta: data/brca1_P38398.fasta
+uniprot_id: P38398
+transcript: NM_007294.3
+window_bp: 8192
+seed: 0
+out_table: data/brca1_variants.parquet

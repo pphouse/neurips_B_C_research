@@ -1,0 +1,35 @@
+{
+  "n_total": 3893,
+  "n_missense_paired": 2086,
+  "consequence_counts": {
+    "missense_variant": 2086,
+    "synonymous_variant": 544,
+    "intron_variant": 489,
+    "splice_region_variant": 446,
+    "splice_donor_variant": 143,
+    "stop_gained": 138,
+    "5_prime_UTR_variant": 47
+  },
+  "domain_counts": {
+    "BRCT": 1844,
+    "none": 1090,
+    "RING": 854,
+    "linker": 105
+  },
+  "clinvar_bin_counts": {
+    "NaN": 3518,
+    "1.0": 209,
+    "0.0": 166
+  },
+  "func_class_counts": {
+    "FUNC": 2821,
+    "LOF": 823,
+    "INT": 249
+  },
+  "missense_by_domain": {
+    "BRCT": 1363,
+    "RING": 642,
+    "linker": 81
+  },
+  "protein_len": 1863
+}
