@@ -1,0 +1,6 @@
+table: data/multigene/clinvar_variants.parquet
+protein_dir: data/multigene/proteins
+prot_layer: L33
+esm_model: facebook/esm2_t33_650M_UR50D
+local_radius: 8
+out_dir: outputs/act/mg_esm

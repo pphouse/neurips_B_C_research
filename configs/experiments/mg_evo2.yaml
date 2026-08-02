@@ -1,0 +1,7 @@
+table: data/multigene/clinvar_variants.parquet
+genome: data/multigene/GRCh38.fa
+dna_layer: blocks.24.mlp.l3
+model: evo2_7b
+local_radius: 8
+var_batch: 3
+out_dir: outputs/act/mg_evo2

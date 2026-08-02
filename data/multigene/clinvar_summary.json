@@ -1,0 +1,47 @@
+{
+  "n": 4316,
+  "genes": [
+    "ATM",
+    "BRCA1",
+    "BRCA2",
+    "CACNA1A",
+    "COL2A1",
+    "CREBBP",
+    "FANCA",
+    "GRIN2A",
+    "GRIN2B",
+    "MSH2",
+    "NSD1",
+    "PKD1",
+    "TP53",
+    "TSC2",
+    "USH2A"
+  ],
+  "test_genes": [
+    "ATM",
+    "BRCA2",
+    "CACNA1A",
+    "NSD1",
+    "PKD1"
+  ],
+  "per_gene": {
+    "ATM": 256,
+    "BRCA1": 320,
+    "BRCA2": 278,
+    "CACNA1A": 265,
+    "COL2A1": 288,
+    "CREBBP": 283,
+    "FANCA": 175,
+    "GRIN2A": 273,
+    "GRIN2B": 295,
+    "MSH2": 310,
+    "NSD1": 320,
+    "PKD1": 320,
+    "TP53": 318,
+    "TSC2": 320,
+    "USH2A": 295
+  },
+  "pos_rate": 0.492,
+  "n_train": 2877,
+  "n_test": 1439
+}

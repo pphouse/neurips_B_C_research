@@ -9,3 +9,7 @@ logs/
 data/raw/
 .venv/
 figures/*.png
+data/multigene/*.fa
+data/multigene/*.fa.fai
+data/multigene/*.txt.gz
+data/multigene/*.parquet
