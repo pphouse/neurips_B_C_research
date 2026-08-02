@@ -71,7 +71,7 @@ def main():
 
     pdd = load_paired(cfg["evo2_dir"], cfg["esm_dir"], cfg["dna_layer"], cfg["prot_layer"],
                       pooling=cfg.get("pooling", "exact"),
-                      norm_split_col=cfg.get("split_col", "split_position"))
+                      norm_split_col=cfg.get("split_col", "split_position"), n_pca=cfg.get("n_pca"))
     meta = pdd.meta
     model, _ = load_model(args.run_dir, dev)
     results = {"run_dir": args.run_dir, "dna_layer": cfg["dna_layer"], "prot_layer": cfg["prot_layer"]}

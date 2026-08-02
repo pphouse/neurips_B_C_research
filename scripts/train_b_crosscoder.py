@@ -29,6 +29,7 @@ def main():
     pd_ = load_paired(
         cfg["evo2_dir"], cfg["esm_dir"], cfg["dna_layer"], cfg["prot_layer"],
         pooling=cfg.get("pooling", "exact"), norm_split_col=cfg.get("split_col", "split_position"),
+        n_pca=cfg.get("n_pca"),
     )
     split = pd_.meta[cfg.get("split_col", "split_position")].to_numpy()
     tr = split == "train"
@@ -51,13 +52,19 @@ def main():
 
     B = cfg.get("batch_size", 256)
     steps = cfg.get("steps", 4000)
+    warmup = int(cfg.get("warmup_frac", 0.3) * steps)  # rec-only warmup
     ntr = Xd_tr.shape[0]
     t0 = time.time()
     log = []
     for step in range(steps):
         idx = torch.randint(0, ntr, (min(B, ntr),), device=dev)
         out = model(Xd_tr[idx], Xp_tr[idx])
-        loss, parts = crosscoder_loss(out, Xd_tr[idx], Xp_tr[idx], w)
+        # ramp alignment/contrast/orth in after reconstruction warmup
+        ramp = min(1.0, max(0.0, (step - warmup) / max(1, 0.3 * steps)))
+        wnow = dict(w)
+        for k in ("align", "contrast", "orth"):
+            wnow[k] = w[k] * ramp
+        loss, parts = crosscoder_loss(out, Xd_tr[idx], Xp_tr[idx], wnow)
         opt.zero_grad(); loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
@@ -65,14 +72,17 @@ def main():
             model.eval()
             with torch.no_grad():
                 o = model(Xd_te, Xp_te)
+                otr = model(Xd_tr, Xp_tr)
                 fd, fp = fve(Xd_te, o["xhat_d"]), fve(Xp_te, o["xhat_p"])
+                fdt = fve(Xd_tr, otr["xhat_d"])
                 l0d = (o["zs_d"] > 0).float().sum(1).mean().item()
+                dead = float((otr["zs_d"].sum(0) == 0).float().mean().item())
             model.train()
-            rec = dict(step=step, loss=loss.item(), fve_dna=fd, fve_prot=fp,
-                       l0_shared=l0d, **parts)
+            rec = dict(step=step, loss=loss.item(), fve_dna=fd, fve_dna_train=fdt,
+                       fve_prot=fp, l0_shared=l0d, dead_shared=dead, ramp=ramp, **parts)
             log.append(rec)
-            print(f"  step {step}: loss={loss.item():.3f} FVE_dna={fd:.3f} "
-                  f"FVE_prot={fp:.3f} L0s={l0d:.1f} align={parts['align']:.3f} "
+            print(f"  step {step}: loss={loss.item():.3f} FVE_dna={fd:.3f}(tr {fdt:.3f}) "
+                  f"FVE_prot={fp:.3f} L0s={l0d:.1f} dead={dead:.2f} align={parts['align']:.3f} "
                   f"contrast={parts['contrast']:.3f}", flush=True)
 
     torch.save({"state_dict": model.state_dict(), "cfg": ccfg.__dict__,
