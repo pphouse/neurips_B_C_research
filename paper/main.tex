@@ -12,8 +12,8 @@
 
 \input{results} % auto-generated numeric macros
 
-\title{\textbf{CentralDogma-$\Delta$CC: Disentangling Shared and Modality-Specific\\
-Variant Mechanisms across Genomic and Protein Language Models}}
+\title{\textbf{Do Genomic and Protein Language Models Share Variant Mechanisms?\\
+Aligning Evo\,2 and ESM-2 across the Central Dogma}}
 \author{Anonymous}
 \affil{}
 \date{}
@@ -22,68 +22,69 @@ Variant Mechanisms across Genomic and Protein Language Models}}
 \maketitle
 
 \begin{abstract}
-Genomic language models (e.g.\ Evo\,2) and protein language models (e.g.\ ESM-2) both
-predict variant effects, but it is unknown whether they encode the \emph{same} molecular
-mechanisms internally, or complementary modality-specific ones. We introduce
-\textbf{CentralDogma-$\Delta$CC}, a sparse \emph{cross-architecture, cross-modality
-crosscoder} that operates not on raw activations but on \emph{paired variant-induced
-activation deltas}: for each missense variant we compute
-$\Delta h_{\mathrm{DNA}}=h_{\mathrm{DNA}}(\text{mut})-h_{\mathrm{DNA}}(\text{wt})$ in Evo\,2 and
-$\Delta h_{\mathrm{PROT}}$ in ESM-2, and learn a shared linear alignment space together with
-shared and modality-private sparse latents that reconstruct both. On the BRCA1
-saturation-genome-editing benchmark (\brcaNmis{} missense variants with deep mutational
-scanning function scores) the shared representation (i)~retrieves the paired variant across
-modalities well above a strong linear-CCA baseline (Recall@1 \retRone{} vs.\ \retRoneCCA{}),
-(ii)~predicts DMS function scores better than CCA and the single-model DNA probe, and
-(iii)~transfers to held-out protein domains and, on a 15-gene ClinVar panel, to entirely
-\emph{unseen genes} (gene-disjoint pathogenicity AUROC \mgAuc{}). An ablation
-shows these gains come from a learned deep-CCA-style alignment, while the sparse codes provide
-interpretability: they predict loss-of-function (AUROC \lofShared{}) and domain, and the two
-models' functional directions map to the same axis in the shared space (cosine \cosDms{}, vs.\
-random pairs \cosRand{}). Finally, a causal probe is a negative result: injecting the shared
-functional direction gives no reliable cross-model control (non-specific in Evo\,2; only a
-marginal, non-significant trend in ESM-2), so representational alignment does not imply an
-interchangeable causal handle. We release code, activations, and the full harness.
+A genomic language model (Evo\,2) and a protein language model (ESM-2) both score human coding
+variants, but do they respond to the \emph{same} underlying causes, or to complementary,
+modality-specific ones? Answering this means comparing their internal representations, which is
+hard: the two models differ in architecture, alphabet, length, and objective, and raw-activation
+similarity is dominated by gene identity and conservation. We take the \emph{change} a variant
+induces---the paired wild-type$\to$mutant activation delta
+$\Delta h_m = h_m(\text{mut})-h_m(\text{wt})$ in each model $m$---and learn a shared cross-modal
+representation of these deltas: a contrastive linear alignment (a deep-CCA-style objective)
+augmented with shared and modality-private sparse dictionaries for interpretability, and a
+delta-crosscoder variant for model diffing. On BRCA1 saturation genome editing (\brcaNmis{}
+missense variants with deep-mutational-scanning scores) the shared representation retrieves the
+paired variant across modalities well above linear CCA (Recall@1 \retRone{} vs.\ \retRoneCCA{}),
+predicts function scores better than CCA and the DNA model, and---crucially for the single-gene
+concern---\emph{transfers to entirely unseen genes} on a 15-gene ClinVar panel
+(gene-disjoint pathogenicity AUROC \mgAuc{}). The two models' \emph{functional directions} map
+to nearly the same axis in the shared space (cosine \cosDms{} vs.\ \cosRand{} for random pairs),
+and the sparse codes predict loss-of-function (AUROC \lofShared{}) and protein domain. We are
+equally explicit about what fails: the sparse codes do not by themselves drive the cross-modal
+alignment (it is deep-CCA-level), individual latents are only weakly monosemantic, and a causal
+probe is \emph{negative}---injecting the shared functional direction does not reliably steer
+either model. Representational alignment across the central dogma is real and transferable, but
+does not (yet) imply an interchangeable causal handle. Code, activations, and harness released.
 \end{abstract}
 
 \section{Introduction}
 Foundation models now span the central dogma: Evo\,2 \citep{brixi2026evo2} models DNA at
 single-nucleotide resolution, while ESM-2 \citep{lin2023esm2} models proteins. Both assign
-scores to human coding variants, and both are used for variant effect prediction (VEP).
-Yet a basic mechanistic question is open: when a DNA model and a protein model both flag a
-missense variant, are they responding to the \emph{same} underlying cause (e.g.\ disruption
-of a conserved structural residue), or to different, modality-specific causes (splicing and
-codon context on the DNA side; folding and solvent exposure on the protein side)? Answering
-this requires comparing the models' \emph{internal representations}, not just their output
-scores. This is hard because the two models differ in architecture (StripedHyena vs.\
-Transformer), tokenization (nucleotides vs.\ amino acids), input length, hidden width, and
-training objective; naively aligning raw activations is dominated by global nuisance factors
-such as gene identity and conservation.
+scores to human coding variants and are used for variant effect prediction (VEP). We ask a
+mechanistic question about their \emph{internals}: when a DNA model and a protein model both
+flag a missense variant, are they responding to the \emph{same} cause (e.g.\ disruption of a
+conserved structural residue), or to different, modality-specific ones (splicing/codon context
+on the DNA side; folding/solvent exposure on the protein side)? This requires comparing
+representations, not output scores---hard because the models differ in architecture
+(StripedHyena vs.\ Transformer), alphabet (nucleotides vs.\ amino acids), length, width, and
+objective, and because naive activation similarity is dominated by gene identity and
+conservation.
 
-We make three observations. First, the object of interest is not the absolute
-representation of a sequence but the \emph{change} a variant induces; taking the paired
-wild-type$\to$mutant activation delta in each model cancels most sequence-identity nuisance
-and focuses on the variant's mechanism. Second, sparse dictionary methods (SAEs,
-crosscoders) provide an interpretable basis; crosscoders in particular
-were designed to \emph{diff} representations across models \citep{lindsey2024crosscoders}.
-Third, restricting to a single gene (BRCA1) removes the dominant gene-identity shortcut,
-so any cross-modal alignment the model finds must reflect within-gene variant structure.
+Three ideas make the comparison tractable. First, the object of interest is not the absolute
+representation of a sequence but the \emph{change} a variant induces; the paired
+wild-type$\to$mutant delta in each model cancels most sequence-identity nuisance and isolates
+the variant's effect. Second, a variant is a natural \emph{anchor} shared by the two models, so
+we can learn a cross-modal alignment by contrasting matched vs.\ mismatched deltas---without
+ever aligning raw sequence embeddings. Third, restricting the deep functional analysis to a
+single gene (BRCA1) removes the gene-identity shortcut, so any alignment must reflect
+within-gene variant structure; we then test transfer explicitly on many genes.
 
-Combining these, \textbf{CentralDogma-$\Delta$CC} is a crosscoder over paired deltas with
-an explicit \emph{shared / DNA-private / protein-private} factorization. Our contributions:
+Our study is a controlled measurement, not a new architecture. The alignment component is a
+deep-CCA \citep{andrew2013dcca}; on top of it we add shared and modality-private \emph{sparse
+dictionaries} (in the crosscoder family \citep{lindsey2024crosscoders}) that make the shared
+space interpretable and support model diffing. Contributions:
 \begin{itemize}\itemsep2pt
-\item A crosscoder applied across \emph{heterogeneous biological foundation models}
-(a DNA and a protein model), rather than across layers or across a base/fine-tune pair.
-\item Learning on \emph{paired variant-induced deltas} with an explicit shared--private split,
-trained with reconstruction, cross-modal alignment, contrastive, and orthogonality losses
-under BatchTopK sparsity.
-\item A rigorous, multi-seed evaluation---cross-modal retrieval, residue- and domain-disjoint
-DMS prediction, biological probing of the codes, a \emph{cross-model causal probe} with an
-honest negative result, and \emph{cross-gene} generalization to unseen genes on a 15-gene
-ClinVar panel.
-\item An extension (\S\ref{sec:c}) that diffs base vs.\ LoRA-disease-fine-tuned Evo\,2 with a
-Delta-Crosscoder, finding that narrow fine-tuning \emph{amplifies existing latents} rather than
-adding new ones.
+\item \textbf{A new question and setting:} aligning the internal representations of a genomic and
+a protein foundation model, on paired variant-induced deltas---to our knowledge not previously
+studied. We name the method \textbf{CentralDogma-$\Delta$CC}.
+\item \textbf{A rigorous, multi-seed, honest evaluation} on BRCA1 SGE: cross-modal retrieval and
+DMS prediction (vs.\ CCA, deep-CCA, single models, concat), residue- and domain-disjoint splits,
+biological probing, a \emph{shared functional axis} analysis with controls, and a
+\emph{cross-model causal probe} that returns a negative result.
+\item \textbf{Cross-gene generalization} to entirely unseen genes on a 15-gene ClinVar panel,
+directly addressing the single-gene concern.
+\item \textbf{A model-diffing extension} (\S\ref{sec:c}): diffing base vs.\ LoRA-disease-fine-tuned
+Evo\,2 with a Delta-Crosscoder \citep{kassem2026delta} shows narrow fine-tuning
+\emph{amplifies existing latents} rather than adding new ones.
 \end{itemize}
 
 \section{Related Work}
@@ -95,108 +96,97 @@ representations encode structure and function and top protein DMS benchmarks
 protein predictors \citep{benegas2025gpnmsa,notin2023proteingym}; we instead compare their
 internal \emph{representations}. \textbf{Sparse dictionaries and interpreting biological LMs.}
 Sparse autoencoders decompose LM activations into interpretable features
-\citep{bricken2023monosemanticity,cunningham2023sae,gao2024topk,bussmann2024batchtopk}, and
-this has been applied \emph{separately} to protein LMs (InterPLM \citep{simon2025interplm}) and
-to gene/genomic LMs \citep{guan2025genesae}. Interpreting a single biological LM is thus
-established; our contribution is to \emph{jointly} decompose two models of different
-modalities. \textbf{Crosscoders and model diffing.} Crosscoders \citep{lindsey2024crosscoders}
-jointly encode multiple representation spaces for cross-layer analysis and model diffing across
-fine-tunes \citep{minder2025chat,kassem2026delta} and across architectures
-\citep{jiralerspong2026crossarch}---but always within one modality (text LLMs). We apply the
-idea across the central dogma (nucleotides vs.\ amino acids), and reuse the Delta-Crosscoder
-\citep{kassem2026delta} to diff a base vs.\ disease-fine-tuned Evo\,2 (\S\ref{sec:c}).
-\textbf{Cross-modal alignment.} Methodologically, the component that drives our retrieval and
-prediction gains is a contrastive linear alignment---i.e.\ a deep-CCA \citep{andrew2013dcca}
-generalisation of CCA \citep{hotelling1936cca}; the crosscoder adds sparse, interpretable codes
-and the model-diffing extension. To our knowledge, aligning the representations of a genomic
-and a protein foundation model, on paired variant-induced deltas, is new.
+\citep{bricken2023monosemanticity,cunningham2023sae,gao2024topk,bussmann2024batchtopk}, and this
+has been applied \emph{separately} to protein LMs (InterPLM \citep{simon2025interplm}) and to
+gene/genomic LMs \citep{guan2025genesae}. Interpreting a single biological LM is thus
+established; our contribution is to \emph{jointly} decompose two models of different modalities.
+\textbf{Crosscoders and model diffing.} Crosscoders \citep{lindsey2024crosscoders} jointly
+encode multiple representation spaces for cross-layer analysis and model diffing across
+fine-tunes \citep{minder2025chat,kassem2026delta} and architectures
+\citep{jiralerspong2026crossarch}---but always within one modality (text LLMs). We apply the idea
+across the central dogma, and reuse the Delta-Crosscoder \citep{kassem2026delta} to diff a base
+vs.\ disease-fine-tuned Evo\,2 (\S\ref{sec:c}). \textbf{Cross-modal alignment.} The component
+that drives our retrieval/prediction gains is a contrastive linear alignment---a deep-CCA
+\citep{andrew2013dcca} generalisation of CCA \citep{hotelling1936cca}; the crosscoder adds
+sparse interpretable codes and the diffing extension. Aligning a genomic and a protein
+foundation model on paired variant deltas is, to our knowledge, new.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{../figures/fig_schematic.pdf}
-\caption{\textbf{CentralDogma-$\Delta$CC.} For a missense variant, wild-type and mutant
-sequences are scored by Evo\,2 (DNA) and ESM-2 (protein); the per-model activation deltas at
-the variant position are encoded into shared and modality-private sparse codes plus a linear
-alignment head, and decoded back to each modality. Shared codes are aligned across modalities.}
+\caption{\textbf{CentralDogma-$\Delta$CC.} For a missense variant, wild-type and mutant sequences
+are scored by Evo\,2 (DNA) and ESM-2 (protein); the per-model activation deltas at the variant
+position are aligned by a contrastive linear head (used for retrieval/probing) and, in parallel,
+encoded into shared and modality-private sparse codes that reconstruct each modality (used for
+interpretability and diffing).}
 \label{fig:schematic}
 \end{figure}
 
 \section{Method}
 \label{sec:method}
-\paragraph{Paired variant deltas.} For a missense SNV we build an 8{,}192\,bp
-variant-centred window and score wild-type and mutant sequences with Evo\,2, extracting the
-residual-stream activation at layer $\ell_{\mathrm{DNA}}$ and SNV position; the DNA delta is
-$\Delta h_{\mathrm{DNA}}=h^{\text{mut}}-h^{\text{wt}}\in\mathbb{R}^{d_{\mathrm{DNA}}}$
-($d_{\mathrm{DNA}}{=}4096$). Independently we substitute the residue in the protein and take
-the ESM-2 hidden-state delta $\Delta h_{\mathrm{PROT}}\in\mathbb{R}^{d_{\mathrm{PROT}}}$
-($d_{\mathrm{PROT}}{=}1280$) at the variant residue and layer $\ell_{\mathrm{PROT}}$. Deltas
-are standardized per dimension and projected onto the top \npca{} principal components fit on
-the training split (variant deltas are high intrinsic dimension, so this denoising is needed
-for the reconstruction objective to generalize); decoder directions are mapped back to raw
-activation units for the causal interventions.
+\paragraph{Paired variant deltas.} For a missense SNV we build an 8{,}192\,bp variant-centred
+window and score wild-type and mutant sequences with Evo\,2, taking the residual-stream
+activation at layer $\ell_{\mathrm{DNA}}$ and the SNV position; the DNA delta is
+$\Delta h_{\mathrm{DNA}}=h^{\text{mut}}-h^{\text{wt}}\in\mathbb{R}^{4096}$. Independently we
+substitute the residue and take the ESM-2 hidden-state delta $\Delta h_{\mathrm{PROT}}\in
+\mathbb{R}^{1280}$ at the variant residue and layer $\ell_{\mathrm{PROT}}$. Deltas are
+standardized per dimension and projected onto the top \npca{} principal components (fit on the
+training split and \emph{frozen}); variant deltas are high intrinsic dimension, so this
+denoising is needed for reconstruction to generalize, and freezing the basis is needed for
+reproducibility.
 
-\paragraph{Shared--private crosscoder.} Each modality $m\in\{\mathrm{DNA},\mathrm{PROT}\}$ has a
-shared encoder/decoder and a private encoder/decoder:
+\paragraph{Shared alignment + sparse dictionaries.} Each modality has (i) a linear alignment
+head $a_m=W^m_{\mathrm{align}}\,\Delta h_m$ and (ii) shared/private sparse encoders producing
+codes $z^m_s,z^m_p=\mathrm{ReLU}(\cdot)$, sparsified with BatchTopK \citep{bussmann2024batchtopk}
+and decoded to reconstruct $\Delta h_m$. The objective is
 \[
-z^{m}_{s}=\mathrm{ReLU}(E^{m}_{s}(\Delta h_m-b_m)),\quad
-z^{m}_{p}=\mathrm{ReLU}(E^{m}_{p}(\Delta h_m-b_m)),\quad
-\widehat{\Delta h}_m = D^{m}_{s}\,\tilde z^{m}_{s} + D^{m}_{p}\,\tilde z^{m}_{p} + b_m,
+\mathcal{L}=\underbrace{\mathrm{NMSE}_{\mathrm{DNA}}+\mathrm{NMSE}_{\mathrm{PROT}}}_{\text{reconstruction}}
++\lambda_c\,\mathcal{L}_{\text{InfoNCE}}(a_{\mathrm{DNA}},a_{\mathrm{PROT}})
++\lambda_a\,\lVert\bar z^{\mathrm{DNA}}_s-\bar z^{\mathrm{PROT}}_s\rVert^2
++\lambda_o\,\mathcal{L}_{\perp}(z_s,z_p).
 \]
-where $\tilde z$ applies BatchTopK \citep{bussmann2024batchtopk} (keep the $k\!\cdot\!B$
-largest activations per code block across the batch). In addition each modality has a
-low-dimensional \emph{linear} alignment head $a_m=W^m_{\mathrm{align}}(\Delta h_m-b_m)$; the
-cross-modal contrastive objective operates on $a_m$ (a learned CCA), which we found essential
-to avoid the mode collapse that a ReLU-sparse shared code suffers under pure alignment. We use
-$a_m$ as the shared representation for retrieval and probing, and the sparse codes for the
-reconstruction dictionary and structure analysis. The training objective is
-\[
-\mathcal{L}= \underbrace{\mathrm{NMSE}_{\mathrm{DNA}}+\mathrm{NMSE}_{\mathrm{PROT}}}_{\text{reconstruction}}
-+\lambda_{c}\,\mathcal{L}_{\text{InfoNCE}}(a_{\mathrm{DNA}},a_{\mathrm{PROT}})
-+\lambda_{a}\,\|\bar z^{\mathrm{DNA}}_{s}-\bar z^{\mathrm{PROT}}_{s}\|^2
-+\lambda_{o}\,\mathcal{L}_{\perp}(z_s,z_p),
-\]
-The InfoNCE term aligns the linear embeddings $a_m$ so that row $i$ of the DNA embedding
-retrieves row $i$ of the protein embedding; because all variants are in BRCA1, negatives are
-in-gene and retrieval cannot exploit gene identity. A weak $\ell_2$ term ($\lambda_a$) keeps
-the sparse shared codes $z_s$ consistent across modalities for interpretability, and
-orthogonality decorrelates shared from private codes. As our ablation shows, the retrieval and
-DMS gains come from $a_m$; the sparse codes $z_s$ serve the biological probing and
-shared-axis analyses, not retrieval.
+InfoNCE aligns the linear embeddings $a_m$ so that row $i$ of the DNA embedding retrieves row $i$
+of the protein embedding (all variants are in one gene, so negatives are in-gene and retrieval
+cannot exploit gene identity); a weak $\ell_2$ term keeps the sparse shared codes consistent
+across modalities, and orthogonality decorrelates shared from private codes. \emph{We are
+explicit that the alignment $a_m$ is a deep-CCA head}; our ablation (\S\ref{sec:results}) shows
+it, not the sparse codes, drives retrieval/prediction, while the sparse codes carry the
+interpretability.
 
-\paragraph{Causal intervention.} For a direction $u$ in the shared alignment space (e.g.\ the
-DMS-predictive direction), we map it into each model's raw activation space through that
-model's alignment encoder, and during a variant forward pass
-we subtract the latent's reconstructed contribution at the variant position and re-score,
-in each model, comparing against a matched-norm random direction.
+\paragraph{Causal probe.} For a direction $u$ in the shared alignment space (e.g.\ the
+DMS-predictive direction), we map it into each model's raw activation space through that model's
+alignment encoder, inject $\pm\alpha u$ at the variant position during a forward pass, and re-score,
+comparing against a matched-norm random direction.
+
+\paragraph{Model diffing (DeltaEvo).} The same delta idea diffs a model against a fine-tuned copy
+of itself: a Delta-Crosscoder \citep{kassem2026delta} over matched $(\Delta_{\mathrm{base}},
+\Delta_{\mathrm{ft}})$ pairs, classifying latents as shared/amplified/fine-tune-specific by their
+per-model decoder norms (\S\ref{sec:c}).
 
 \section{Experimental setup}
 \label{sec:setup}
-We use the BRCA1 SGE dataset \citep{findlay2018brca1}: \brcaNmis{} missense SNVs with
-continuous DMS function scores, a functional class (FUNC/INT/LOF), and (partial) ClinVar
-labels, mapped to UniProt P38398 (all \brcaNmis{} residue references validated). Variants
-fall in two well-separated domains (RING, $n{=}\brcaRING{}$; BRCT, $n{=}\brcaBRCT{}$),
-enabling a \emph{domain-disjoint} generalization split in addition to a residue-disjoint
-split. Evo\,2 is \evoModel{} and ESM-2 is \esmModel{}. We select layers
-$\ell_{\mathrm{DNA}}{=}\dnaLayer{}$ and $\ell_{\mathrm{PROT}}{=}\protLayer{}$ and local-mean
-pooling ($\pm 8$) by a ridge DMS probe over a grid of layers/poolings on the full data (Evo\,2
-mid-to-late blocks and ESM-2 layer~33 gave the strongest single-model probes; deltas at the
-exact position alone are noisier than the local mean). The crosscoder uses shared/private
-width \Kshared{}/\Kprivate{}, alignment dimension \dalign{}, and BatchTopK $k{=}\topk{}$; the
-preprocessing (per-dimension standardization + \npca{}-component PCA) is fit on the training
-split and \emph{frozen} for all evaluation, which we found necessary for reproducibility.
-Baselines: single-model $\Delta$ linear probe, concatenation, PLS, linear CCA, and a pure
-deep-CCA (alignment head only). All numbers are on held-out splits, 5 seeds.
+BRCA1 SGE \citep{findlay2018brca1}: \brcaNmis{} missense SNVs with continuous DMS scores, a
+functional class (FUNC/INT/LOF), and (partial) ClinVar labels, mapped to UniProt P38398 (all
+\brcaNmis{} residue references validated). Variants fall in two disjoint domains (RING
+$n{=}\brcaRING{}$; BRCT $n{=}\brcaBRCT{}$), giving a domain-disjoint split. For cross-gene
+transfer we assemble \mgNgenes{} genes of ClinVar missense (balanced pathogenic/benign, GRCh38
+coordinates, UniProt-validated) and split by gene. Evo\,2 is \evoModel{}, ESM-2 is \esmModel{};
+we select $\ell_{\mathrm{DNA}}{=}\dnaLayer{}$, $\ell_{\mathrm{PROT}}{=}\protLayer{}$ and
+local-mean pooling by a ridge DMS probe on the full data. Model width: shared/private
+\Kshared{}/\Kprivate{}, alignment dim \dalign{}, BatchTopK $k{=}\topk{}$. Baselines: single-model
+$\Delta$ probe, concatenation, PLS, linear CCA, and a pure deep-CCA. All numbers are held-out,
+5 seeds.
 
 \section{Results}
 \label{sec:results}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{../figures/fig_results.pdf}
-\caption{\textbf{Results (5 seeds).} (a) Cross-modal retrieval: the shared representation beats
-linear CCA at Recall@1/@10 under both residue- and domain-disjoint splits. (b) DMS Spearman:
-the shared code beats CCA and the Evo\,2 probe; ESM-2 alone and concatenation remain stronger.
-(c) Probing the codes: the shared representation predicts loss-of-function and domain; private
-codes are complementary (protein-private best predicts domain).}
+\caption{\textbf{Results (5 seeds).} (a) Cross-modal retrieval: a learned alignment (deep-CCA or
+our alignment head) beats linear CCA; the \emph{sparse} shared code does not retrieve (it is the
+interpretable dictionary). (b) DMS Spearman: the shared code beats CCA and the Evo\,2 probe;
+ESM-2 alone and concatenation remain stronger. (c) Probing the codes: the shared representation
+predicts loss-of-function and domain; private codes are complementary.}
 \label{fig:results}
 \end{figure}
 \input{results_body}
@@ -204,54 +194,52 @@ codes are complementary (protein-private best predicts domain).}
 \section{Extension: model-diffing a disease fine-tune (DeltaEvo)}
 \label{sec:c}
 The same delta framework diffs a model against a fine-tuned copy of itself. We LoRA-fine-tune
-Evo\,2 (rank-8 adapters on the MLPs of blocks 20--26, backbone frozen) to classify BRCA1
-loss-of-function from its variant-position delta activation, on the domain-disjoint split
-(train BRCT, test RING). (Evo\,2's inference stack stores weights as \emph{inference tensors}
-that cannot be differentiated; we re-materialise them to enable LoRA autograd---a small reusable
+Evo\,2 \citep{hu2022lora} (rank-8 adapters on the MLPs of blocks 20--26, backbone frozen) to
+classify BRCA1 loss-of-function from its variant-position delta activation, on the
+domain-disjoint split. (Evo\,2's inference stack stores weights as \emph{inference tensors} that
+cannot be differentiated; we re-materialise them to enable LoRA autograd---a small reusable
 recipe.) Fine-tuning improves held-out RING LOF classification from AUROC \cBaseOOD{} (frozen
 backbone + head) to \cLoraOOD{} (LoRA), and the adaptation lives in the backbone: a frozen head
 on the \emph{fine-tuned} activations already reaches \cFtOOD{}, and the mean per-variant
 activation change is $\lVert\Delta_{\mathrm{ft}}-\Delta_{\mathrm{base}}\rVert=\cDiffNorm{}$ (not a
-head-only shortcut). Training a Delta-Crosscoder on the matched $(\Delta_{\mathrm{base}},
-\Delta_{\mathrm{ft}})$ pairs, it reconstructs the base$\to$ft \emph{difference} better than a
-standard crosscoder ($\Delta$FVE $+\cDeltaAdv{}$), and its taxonomy has \cShared{} shared and
-\cAmplified{} \emph{amplified} latents but \cFtSpecific{} fine-tune-\emph{specific} ones: narrow
-disease fine-tuning amplifies existing features rather than introducing new ones, consistent
-with the reuse hypothesis. The amplified latents are only weakly LOF-selective (AUROC
-\cLofAmp{}), leaving open exactly which reweighted features drive the gain---a preliminary but
-encouraging demonstration that Delta-Crosscoders can audit genomic-LM fine-tuning.
+head-only shortcut). Training a Delta-Crosscoder on the matched pairs, it reconstructs the
+base$\to$ft \emph{difference} better than a standard crosscoder ($\Delta$FVE $+\cDeltaAdv{}$), and
+its taxonomy has \cShared{} shared and \cAmplified{} \emph{amplified} latents but \cFtSpecific{}
+fine-tune-\emph{specific} ones: narrow disease fine-tuning amplifies existing features rather than
+introducing new ones. The amplified latents are only weakly LOF-selective (AUROC \cLofAmp{}),
+leaving open which reweighted features drive the gain---a preliminary but encouraging
+demonstration that Delta-Crosscoders can audit genomic-LM fine-tuning.
 
 \section{Discussion and limitations}
-We are deliberately explicit about what does and does not work. \textbf{(i)~Assay coverage.}
-The \emph{DMS-level} analysis (function-score prediction, the shared functional axis) is on
-BRCA1, chosen to eliminate the gene-identity confound; we show cross-gene generalization on a
-15-gene ClinVar panel (\S\ref{sec:results}), but extending the continuous-DMS analysis to many
-assays (e.g.\ ProteinGym) is the natural next step. \textbf{(ii)~Not a new SOTA predictor.} The shared code beats
-the linear cross-modal baseline (CCA) and the DNA probe, but ESM-2 alone predicts missense DMS
-better; the value of the shared code is interpretability, cross-modal retrieval, and the
-shared-axis analysis, not raw accuracy. \textbf{(iii)~Representation- vs latent-level
-interpretability.} The shared \emph{representation} predicts loss-of-function and domain
-(Fig.~\ref{fig:results}c), but individual sparse latents are only weakly annotation-selective,
-so we report collective probes rather than claim monosemantic features.
-\textbf{(iv)~Alignment $\neq$ causal exchange.} Representational alignment (cosine \cosDms{})
-does not translate into an interchangeable causal handle: our activation injection produces
-only a marginal, non-significant DMS-correlated trend in ESM-2 and is non-specific in Evo\,2's
-likelihood. This may reflect the difficulty of steering Evo\,2's long-convolutional stack with
-a single-position edit as much as an absence of shared causal structure, and deserves dedicated
-study with richer interventions. \textbf{(v)~Scope.}
-The paired-delta design assumes a defined variant position in both models (missense SNVs);
-splice/indel variants can only be analyzed through the DNA branch. Methodologically,
-CentralDogma-$\Delta$CC combines deep-CCA-style alignment with a shared--private sparse
-autoencoder; its novelty is the cross-modal biological setting and the variant-delta framing
-rather than the individual components.
+We are deliberately explicit about what does and does not work. \textbf{(i)~Method is a setting,
+not a new architecture.} The alignment is a deep-CCA; the sparse dictionaries add interpretability
+and diffing. Our ablation shows the sparse codes do \emph{not} improve alignment
+(they retrieve at chance), so the headline retrieval/DMS gains should be read as ``learned
+cross-modal alignment of variant deltas beats linear CCA,'' with the crosscoder contributing the
+interpretable codes and the shared-axis and diffing analyses. \textbf{(ii)~Assay coverage.} The
+DMS-level analysis is on BRCA1 (to remove the gene-identity confound); we show cross-gene transfer
+on 15 ClinVar genes, but extending the continuous-DMS analysis to many assays (e.g.\ ProteinGym
+\citep{notin2023proteingym}) is the natural next step. \textbf{(iii)~Not a SOTA predictor.} The
+shared code beats CCA and the DNA probe, but ESM-2 alone predicts missense DMS better; the value
+is interpretability, cross-modal retrieval, transfer, and the shared-axis result---not raw
+accuracy. \textbf{(iv)~Representation- vs latent-level interpretability.} The shared
+\emph{representation} predicts LOF and domain, but individual sparse latents are only weakly
+annotation-selective, so we report collective probes rather than claim monosemantic features.
+\textbf{(v)~Alignment $\neq$ causal exchange.} Representational alignment (cosine \cosDms{}) does
+not translate into a causal handle: injecting the shared functional direction is non-specific in
+Evo\,2 and only a marginal, non-significant trend in ESM-2. This may reflect the difficulty of
+steering Evo\,2's long-convolutional stack with a single-position edit as much as an absence of
+shared causal structure, and deserves dedicated study with richer interventions.
 
 \section{Conclusion}
-Paired variant deltas plus a learned cross-modal alignment expose a shared functional axis
-between a genomic and a protein foundation model---beating linear CCA on retrieval and function
-prediction and partially transferring across protein domains---while interpretable sparse codes
-separate shared from modality-specific structure. Turning this representational alignment into a
-causal handle, and scaling beyond a single gene, are the clear next steps toward mechanistic,
-cross-modal interpretability of biological foundation models.
+Do genomic and protein language models share variant mechanisms? At the level of
+\emph{representations}, partly yes: a learned alignment of paired variant deltas beats linear CCA,
+transfers to unseen genes and domains, and places the two models' functional directions on the
+same axis. At the level of \emph{individual causal features}, not demonstrably: sparse latents are
+weakly monosemantic and the shared direction is not an interchangeable causal handle. Measuring
+this honestly---across the central dogma, with proper controls and negative results---is, we
+argue, a useful step toward cross-modal mechanistic interpretability of biological foundation
+models.
 
 \small
 \bibliographystyle{plainnat}
