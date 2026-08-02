@@ -74,6 +74,19 @@ def main():
             "cDeltaAdv": f(ec["delta_cc"]["fve_delta"] - ec["standard_cc"]["fve_delta"], 2),
             "cLofShared": f(ec.get("lof_auroc_shared")), "cLofAmp": f(ec.get("lof_auroc_amplified")),
         })
+    # ---- Multi-gene generalization macros ----
+    mg = L("outputs/multigene/eval_mg.json")
+    mgsum = L("data/multigene/clinvar_summary.json")
+    if mg:
+        macros.update({
+            "mgNgenes": len(mgsum["genes"]) if mgsum else "--",
+            "mgNtrainGenes": len(mgsum["genes"]) - len(mgsum["test_genes"]) if mgsum else "--",
+            "mgNtestGenes": len(mg["test_genes"]), "mgNtest": mg["n_test"],
+            "mgRone": f(mg["retrieval_crosscoder"]["R1"][0]), "mgRten": f(mg["retrieval_crosscoder"]["R10"]),
+            "mgRoneCCA": f(mg["retrieval_cca"]["R1"]), "mgRoneDCCA": f(mg["retrieval_deepcca"]["R1"]),
+            "mgAuc": f(mg["clinvar_auroc"]["shared"][0]), "mgAucDna": f(mg["clinvar_auroc"]["dna"]),
+            "mgAucProt": f(mg["clinvar_auroc"]["prot"]), "mgAucCCA": f(mg["clinvar_auroc"]["cca"]),
+        })
     with open("paper/results.tex", "w") as fh:
         for k, v in macros.items():
             fh.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")
@@ -123,6 +136,19 @@ def main():
                 f"{macros['domDmsShared']} vs.\\ {macros['domDmsCCA']}), though with substantial "
                 f"degradation (ESM-2 alone reaches {macros['domDmsProt']}). The method partially "
                 "transfers to an unseen structural domain rather than memorizing residues.")
+    if mg:
+        body.append("\n\n\\paragraph{Cross-gene generalization (multi-gene ClinVar).} To test the "
+                    "single-gene concern directly, we assemble \\mgNgenes{} genes of ClinVar missense "
+                    "variants (balanced pathogenic/benign, GRCh38 coordinates, protein references "
+                    "validated) and train on \\mgNtrainGenes{} genes, evaluating on \\mgNtestGenes{} "
+                    "\\emph{held-out} genes ($n{=}\\mgNtest{}$). Cross-modal retrieval within each "
+                    f"unseen gene reaches Recall@1 {macros['mgRone']} (Recall@10 {macros['mgRten']}), "
+                    f"above linear CCA ({macros['mgRoneCCA']}) and comparable to deep-CCA "
+                    f"({macros['mgRoneDCCA']}); the alignment thus transfers to genes never seen in "
+                    "training. On \\emph{gene-disjoint} ClinVar pathogenicity prediction, the shared "
+                    f"code reaches AUROC {macros['mgAuc']}, versus the Evo\\,2 probe {macros['mgAucDna']}, "
+                    f"the ESM-2 probe {macros['mgAucProt']}, and CCA {macros['mgAucCCA']}---the shared "
+                    "cross-modal representation carries transferable pathogenicity signal across genes.")
     body.append("\n\n\\paragraph{Biological structure of the sparse codes.} On held-out variants the "
                 f"shared sparse code predicts loss-of-function (AUROC {macros['lofShared']}, 95\\% CI "
                 f"[{macros['lofSharedLo']},{macros['lofSharedHi']}], $n{{=}}\\lofN{{}}$) and domain "
