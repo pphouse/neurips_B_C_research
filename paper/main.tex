@@ -102,7 +102,10 @@ $\Delta h_{\mathrm{DNA}}=h^{\text{mut}}-h^{\text{wt}}\in\mathbb{R}^{d_{\mathrm{D
 ($d_{\mathrm{DNA}}{=}4096$). Independently we substitute the residue in the protein and take
 the ESM-2 hidden-state delta $\Delta h_{\mathrm{PROT}}\in\mathbb{R}^{d_{\mathrm{PROT}}}$
 ($d_{\mathrm{PROT}}{=}1280$) at the variant residue and layer $\ell_{\mathrm{PROT}}$. Deltas
-are standardized per dimension on the training split.
+are standardized per dimension and projected onto the top \npca{} principal components fit on
+the training split (variant deltas are high intrinsic dimension, so this denoising is needed
+for the reconstruction objective to generalize); decoder directions are mapped back to raw
+activation units for the causal interventions.
 
 \paragraph{Shared--private crosscoder.} Each modality $m\in\{\mathrm{DNA},\mathrm{PROT}\}$ has a
 shared encoder/decoder and a private encoder/decoder:

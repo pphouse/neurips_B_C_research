@@ -56,6 +56,7 @@ def main():
         "dnaLayer": r"\texttt{%s}" % pos.get("dna_layer", "").replace("_", r"\_").replace(".", r"."),
         "protLayer": r"ESM-2 %s" % str(pos.get("prot_layer", "")),
         "Kshared": cfg["k_shared"], "Kprivate": cfg["k_private"], "topk": cfg["topk_shared"],
+        "npca": cfg.get("n_pca", 128),
         "retRone": fmt(retcc.get("R@1")), "retRoneCCA": fmt(retcca.get("R@1")),
     }
     with open(Path(args.out) / "results.tex", "w") as f:
