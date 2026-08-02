@@ -24,11 +24,12 @@ def seq_loglik(model, ids: torch.Tensor, logits: torch.Tensor) -> float:
 class Patcher:
     """Registers a hook on `layer_name` that adds `delta_vec` at `pos` on the fly."""
 
-    def __init__(self, model, layer_name: str):
+    def __init__(self, model, layer_name: str, radius: int = 0):
         self.model = model
         self.layer = model.model.get_submodule(layer_name)
         self.delta = None
         self.pos = None
+        self.radius = radius  # inject over pos +/- radius (match local-mean pooling)
         self.handle = None
 
     def _hook(self, _, __, output):
@@ -37,7 +38,9 @@ class Patcher:
         is_tuple = isinstance(output, tuple)
         h = output[0] if is_tuple else output
         h = h.clone()
-        h[0, self.pos] = h[0, self.pos] + self.delta.to(h.dtype)
+        lo = max(0, self.pos - self.radius)
+        hi = min(h.shape[1], self.pos + self.radius + 1)
+        h[0, lo:hi] = h[0, lo:hi] + self.delta.to(h.dtype)
         return (h,) + output[1:] if is_tuple else h
 
     def __enter__(self):
@@ -53,6 +56,8 @@ class Patcher:
         self.pos = pos
         self.delta = delta_vec
         logits = self.model.model.forward(ids)
+        if isinstance(logits, tuple):
+            logits = logits[0]
         self.delta = None
         return seq_loglik(self.model, ids, logits)
 

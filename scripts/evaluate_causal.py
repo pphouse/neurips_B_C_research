@@ -60,13 +60,12 @@ def main():
     dev = "cuda"
 
     pdd = load_paired(cfg["evo2_dir"], cfg["esm_dir"], cfg["dna_layer"], cfg["prot_layer"],
-                      pooling=cfg.get("pooling", "exact"), norm_split_col="split_position")
+                      pooling=cfg.get("pooling", "exact"), norm_split_col="split_position",
+                      n_pca=cfg.get("n_pca"))
     meta = pdd.meta
     ck = torch.load(Path(args.run_dir) / "crosscoder.pt", map_location=dev, weights_only=False)
     model = SharedPrivateCrosscoder(CrosscoderConfig(**ck["cfg"])).to(dev)
     model.load_state_dict(ck["state_dict"]); model.eval()
-    dna_std = torch.tensor(ck["dna_std"], device=dev)
-    prot_std = torch.tensor(ck["prot_std"], device=dev)
 
     with torch.no_grad():
         out = model(torch.tensor(pdd.dna, device=dev), torch.tensor(pdd.prot, device=dev))
@@ -92,16 +91,16 @@ def main():
     seq_chr17 = load_chr17(cfg["chr17_fasta"])
     protein = str(list(SeqIO.parse(cfg["protein_fasta"], "fasta"))[0].seq)
 
-    # decoder columns (normalized space) -> raw space directions
-    dec_d = model.dna.dec_shared.weight.detach()   # (D_dna, k_shared)
-    dec_p = model.prot.dec_shared.weight.detach()   # (D_prot, k_shared)
+    # decoder columns are in the (PCA) model-input space; map back to raw activation units.
+    dec_d = model.dna.dec_shared.weight.detach().cpu().numpy()   # (P_dna, k_shared)
+    dec_p = model.prot.dec_shared.weight.detach().cpu().numpy()
 
     rng = np.random.default_rng(0)
     results = []
     test_mask = meta["split_position"].to_numpy() == "test"
     for f in top:
-        dir_d_raw = (dec_d[:, f] * dna_std)   # raw Evo2 direction
-        dir_p_raw = (dec_p[:, f] * prot_std)
+        dir_d_raw = torch.tensor(pdd.input_dir_to_raw("dna", dec_d[:, f]), device=dev).float()
+        dir_p_raw = torch.tensor(pdd.input_dir_to_raw("prot", dec_p[:, f]), device=dev).float()
         # variants (test) most activating latent f
         cand = np.where(test_mask & (zs_d[:, f] > 0))[0]
         cand = cand[np.argsort(-zs_d[cand, f])][: args.n_variants]

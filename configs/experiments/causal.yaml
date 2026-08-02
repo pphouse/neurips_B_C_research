@@ -8,3 +8,4 @@ evo2_model: evo2_7b
 esm_model: facebook/esm2_t33_650M_UR50D
 chr17_fasta: /home/azureuser/evo/evo2/notebooks/brca1/GRCh37.p13_chr17.fna.gz
 protein_fasta: data/brca1_P38398.fasta
+inject_radius: 0
