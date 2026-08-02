@@ -94,12 +94,15 @@ def main():
         except AssertionError as e:
             df.loc[i, "reason_code"] = str(e)
             continue
-        for seq, tag in ((ref_seq, "wt"), (var_seq, "mut")):
-            ids = torch.tensor(model.tokenizer.tokenize(seq), dtype=torch.int).unsqueeze(0).cuda()
-            with torch.inference_mode():
-                _, emb = model(ids, return_embeddings=True, layer_names=layers)
-            for l in layers:
-                a = emb[l][0]  # (L, D)
+        # batch WT+mut (same length) into one forward
+        wt_ids = model.tokenizer.tokenize(ref_seq)
+        mut_ids = model.tokenizer.tokenize(var_seq)
+        ids = torch.tensor([wt_ids, mut_ids], dtype=torch.int).cuda()
+        with torch.inference_mode():
+            _, emb = model(ids, return_embeddings=True, layer_names=layers)
+        for l in layers:
+            for bi, tag in ((0, "wt"), (1, "mut")):
+                a = emb[l][bi]  # (L, D)
                 store[f"{l}_{tag}_exact"][i] = to_np(pool_exact(a, snv_idx))
                 store[f"{l}_{tag}_local"][i] = to_np(pool_local_mean(a, snv_idx, radius))
         ok[i] = True
