@@ -1,0 +1,17 @@
+{
+  "n": 100,
+  "alpha": 15.0,
+  "shared_space_cosine": 0.9046734571456909,
+  "evo_dose_mean": -0.1666015625,
+  "esm_dose_mean": -0.05313176274299622,
+  "evo_dose_pos_frac": 0.46,
+  "esm_dose_pos_frac": 0.43,
+  "corr_evo_esm_plus": 0.03704181530714334,
+  "frac_same_dir_plus": 0.56,
+  "evo_specific": -0.15339355468750004,
+  "esm_specific": -0.025443010330200196,
+  "corr_evo_plus_dms": 0.008616861686168617,
+  "p_evo_plus_dms": 0.9321923589463317,
+  "corr_esm_plus_dms": 0.13096948985804477,
+  "p_esm_plus_dms": 0.1940018596329996
+}

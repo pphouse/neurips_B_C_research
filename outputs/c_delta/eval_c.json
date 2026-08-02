@@ -1,0 +1,25 @@
+{
+  "delta_cc": {
+    "fve_base": 0.4436910152435303,
+    "fve_ft": 0.41633498668670654,
+    "fve_delta": -1.3432180881500244,
+    "taxonomy_counts": {
+      "shared": 246,
+      "amplified": 10
+    }
+  },
+  "lof_auroc_ft_specific": null,
+  "lof_auroc_amplified": 0.5307557408510356,
+  "lof_auroc_shared": 0.6203593408775064,
+  "n_ft_specific": 0,
+  "n_amplified": 10,
+  "standard_cc": {
+    "fve_base": 0.4178953766822815,
+    "fve_ft": 0.36501097679138184,
+    "fve_delta": -2.8395681381225586,
+    "taxonomy_counts": {
+      "shared": 250,
+      "amplified": 6
+    }
+  }
+}

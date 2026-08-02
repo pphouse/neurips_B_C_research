@@ -1,0 +1,33 @@
+{
+  "wrapped": [
+    "blocks.20.mlp.l1",
+    "blocks.20.mlp.l2",
+    "blocks.20.mlp.l3",
+    "blocks.21.mlp.l1",
+    "blocks.21.mlp.l2",
+    "blocks.21.mlp.l3",
+    "blocks.22.mlp.l1",
+    "blocks.22.mlp.l2",
+    "blocks.22.mlp.l3",
+    "blocks.23.mlp.l1",
+    "blocks.23.mlp.l2",
+    "blocks.23.mlp.l3",
+    "blocks.24.mlp.l1",
+    "blocks.24.mlp.l2",
+    "blocks.24.mlp.l3",
+    "blocks.25.mlp.l1",
+    "blocks.25.mlp.l2",
+    "blocks.25.mlp.l3",
+    "blocks.26.mlp.l1",
+    "blocks.26.mlp.l2",
+    "blocks.26.mlp.l3"
+  ],
+  "n_train": 1265,
+  "n_test": 576,
+  "final": {
+    "epoch": 0,
+    "auroc_train": 0.9009375,
+    "auroc_test": 0.6648195702121908,
+    "min": 6.759229671955109
+  }
+}

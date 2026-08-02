@@ -1,0 +1,8 @@
+{
+  "LOF_vs_FUNC/shared": 0.838,
+  "LOF_vs_FUNC/priv_dna": 0.744,
+  "LOF_vs_FUNC/priv_prot": 0.822,
+  "RING_vs_BRCT/shared": 0.787,
+  "RING_vs_BRCT/priv_dna": 0.79,
+  "RING_vs_BRCT/priv_prot": 0.848
+}

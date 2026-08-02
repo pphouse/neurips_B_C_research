@@ -1,0 +1,9 @@
+{
+  "base_frozen_OOD": 0.562,
+  "ft_frozen_OOD": 0.614,
+  "lora_head_OOD": 0.665,
+  "model_diff_L2": 4.563,
+  "n_train": 1265,
+  "n_test": 576,
+  "pos_rate": 0.24
+}

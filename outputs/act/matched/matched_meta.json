@@ -1,0 +1,7 @@
+{
+  "n": 1917,
+  "layer": "blocks.26.mlp.l3",
+  "window": 1024,
+  "dim": 4096,
+  "mean_delta_model_diff_L2": 4.5631561279296875
+}
