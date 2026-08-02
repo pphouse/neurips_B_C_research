@@ -1,0 +1,16 @@
+run_dir: outputs/c_lora
+table: data/brca1_variants.parquet
+chr17_fasta: /home/azureuser/evo/evo2/notebooks/brca1/GRCh37.p13_chr17.fna.gz
+model: evo2_7b
+layer: blocks.26.mlp.l3          # head reads this (downstream of LoRA)
+lora_target: 'blocks\.(2[0-6])\.mlp\.(l1|l2|l3)'
+hidden: 4096
+window_bp: 1024
+rank: 8
+alpha: 16
+dropout: 0.0
+lr: 0.0005
+wd: 0.01
+epochs: 3
+split_col: split_domain          # OOD: train BRCT -> test RING
+seed: 0
