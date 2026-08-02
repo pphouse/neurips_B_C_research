@@ -1,0 +1,22 @@
+{
+  "burial (structure)": {
+    "shared": 0.39582480207838416,
+    "DNA-private": 0.38391357482243643,
+    "protein-private": 0.41498051700008
+  },
+  "disorder 1-pLDDT (structure)": {
+    "shared": 0.3605723511561113,
+    "DNA-private": 0.36000717557351963,
+    "protein-private": 0.35618287780924635
+  },
+  "local GC (DNA context)": {
+    "shared": 0.5075242749359676,
+    "DNA-private": 0.5167825938205821,
+    "protein-private": 0.5004731946107533
+  },
+  "DMS function": {
+    "shared": 0.4438643757904997,
+    "DNA-private": 0.3724883142185625,
+    "protein-private": 0.480396630351821
+  }
+}

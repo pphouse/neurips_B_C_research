@@ -1,0 +1,10 @@
+{
+  "dna_priv_l2_missense": 7.617876052856445,
+  "dna_priv_l2_splice": 8.722420692443848,
+  "best_splice_latent": 29,
+  "best_splice_auroc": 0.6420493483112413,
+  "splice_vs_mis_auroc_cv": 0.668480469238079,
+  "n_splice": 589,
+  "n_mis": 2086,
+  "dna_priv_l2_syn": 1.745964527130127
+}

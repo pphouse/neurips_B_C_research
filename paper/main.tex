@@ -191,6 +191,18 @@ predicts loss-of-function and domain; private codes are complementary.}
 \end{figure}
 \input{results_body}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../figures/fig_extra.pdf}
+\caption{\textbf{Generalization, shared axis, and specialization.} (a)~On a 15-gene ClinVar
+panel, the alignment transfers to \emph{unseen} genes (Recall@10 within held-out genes; box:
+gene-disjoint pathogenicity AUROC). (b)~Functional and domain directions align across modalities
+(cosine $\gg$ random), and are property-specific (functional vs.\ domain is at the random level).
+(c)~Applied to variant classes it never trained on, the DNA-private code's activation tracks
+DNA-level severity: splice $>$ missense $\gg$ synonymous (silent).}
+\label{fig:extra}
+\end{figure}
+
 \section{Extension: model-diffing a disease fine-tune (DeltaEvo)}
 \label{sec:c}
 The same delta framework diffs a model against a fine-tuned copy of itself. We LoRA-fine-tune

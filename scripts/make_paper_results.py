@@ -74,6 +74,23 @@ def main():
             "cDeltaAdv": f(ec["delta_cc"]["fve_delta"] - ec["standard_cc"]["fve_delta"], 2),
             "cLofShared": f(ec.get("lof_auroc_shared")), "cLofAmp": f(ec.get("lof_auroc_amplified")),
         })
+    # ---- Biological specialization + activation-patching causal macros ----
+    bio = L("outputs/b_mvp/bio_probe.json"); spl = L("outputs/b_mvp/splice_probe.json")
+    cpatch = L("outputs/b_mvp/causal_patch.json")
+    if bio and spl:
+        macros.update({
+            "burialShared": f(bio["burial (structure)"]["shared"], 2),
+            "burialDna": f(bio["burial (structure)"]["DNA-private"], 2),
+            "burialProt": f(bio["burial (structure)"]["protein-private"], 2),
+            "gcShared": f(bio["local GC (DNA context)"]["shared"], 2),
+            "gcDna": f(bio["local GC (DNA context)"]["DNA-private"], 2),
+            "gcProt": f(bio["local GC (DNA context)"]["protein-private"], 2),
+            "actSyn": f(spl["dna_priv_l2_syn"], 1), "actMis": f(spl["dna_priv_l2_missense"], 1),
+            "actSpl": f(spl["dna_priv_l2_splice"], 1), "spliceAuc": f(spl["splice_vs_mis_auroc_cv"], 2),
+        })
+    if cpatch:
+        macros.update({"patchSpec": f(cpatch["specificity"], 3), "patchCorr": f(cpatch["corr_move_dms"], 2),
+                       "patchP": f(cpatch["p_move_dms"], 2)})
     # ---- Multi-gene generalization macros ----
     mg = L("outputs/multigene/eval_mg.json")
     mgsum = L("data/multigene/clinvar_summary.json")
@@ -158,6 +175,20 @@ def main():
                 "consistent with ESM-2 encoding structural context. The shared code also exceeds "
                 f"classical single-variant VEP predictors (SIFT {macros['sift']}, CADD "
                 f"{macros['cadd']}, phyloP {macros['phylop']}; $|\\rho|$ vs.\\ DMS).")
+    if bio and spl:
+        body.append("\n\n\\paragraph{Modality-specific private codes.} The private codes specialise in the "
+                    "expected directions (Fig.~\\ref{fig:extra}c). The \\emph{protein}-private code best "
+                    f"predicts residue burial from the AlphaFold structure ($\\rho{{=}}{macros['burialProt']}$ "
+                    f"vs.\\ DNA-private {macros['burialDna']}), while the \\emph{{DNA}}-private code best "
+                    f"predicts local sequence GC content ($\\rho{{=}}{macros['gcDna']}$ vs.\\ protein-private "
+                    f"{macros['gcProt']})---a (modest) double dissociation between structure and sequence "
+                    "context. More strikingly, applying the frozen DNA branch to variant classes it never "
+                    "trained on, the DNA-private code's activation tracks DNA-level severity: "
+                    f"$\\lVert z\\rVert$ is {macros['actSpl']} for splice variants, {macros['actMis']} for "
+                    f"missense, and only {macros['actSyn']} for \\emph{{synonymous}} (silent) variants; it "
+                    f"separates splice from missense at AUROC {macros['spliceAuc']}. The shared code, by "
+                    "contrast, fires equally on splice and missense---it encodes the cross-modal functional "
+                    "axis, not DNA-specific mechanism.")
     body.append("\n\n\\paragraph{A shared functional axis.} The direction of maximal DMS correlation, "
                 "fit independently in each model's activation space, maps to nearly the same point in "
                 f"the alignment space (cosine {macros['cosDms']}), far above random direction pairs "
@@ -168,14 +199,16 @@ def main():
                 "across modalities; different properties $\\Rightarrow$ different axes.")
     body.append("\n\n\\paragraph{Causal probing (a negative result).} We test whether this alignment "
                 "yields a causal handle by injecting the shared functional direction at the variant "
-                f"position and re-scoring ($n{{=}}\\causalN{{}}$ held-out variants). Single-position "
-                "activation edits do \\emph{not} give reliable causal control in either model: the "
-                "score shift is uncorrelated with the variant's true effect and indistinguishable from "
-                f"a matched-norm random direction (ESM-2 Spearman {macros['esmCausalCorr']}, "
-                f"$p{{=}}{macros['esmCausalP']}$; Evo\\,2 {macros['evoCausalCorr']}, "
-                f"$p{{=}}{macros['evoCausalP']}$). Representational alignment does not imply an "
-                "interchangeable causal handle---a caution for cross-model steering, and an open "
-                "question of whether richer interventions would succeed.")
+                f"position and re-scoring ($n{{=}}\\causalN{{}}$ held-out variants). We tried \\emph{{two}} "
+                "interventions---adding the shared functional direction, and activation-\\emph{patching} "
+                "that removes the variant's change \\emph{along} that direction---and neither gives reliable "
+                "control: the score shift is at best weakly correlated with the variant's true effect and "
+                f"indistinguishable from a matched-norm random direction (injection: ESM-2 "
+                f"$\\rho{{=}}{macros['esmCausalCorr']}$, $p{{=}}{macros['esmCausalP']}$, Evo\\,2 "
+                f"$\\rho{{=}}{macros['evoCausalCorr']}$; Evo\\,2 patching $\\rho{{=}}{macros.get('patchCorr','--')}$, "
+                f"$p{{=}}{macros.get('patchP','--')}$, specificity vs.\\ random $\\approx{macros.get('patchSpec','--')}$). "
+                "Representational alignment does not imply an interchangeable causal handle---a caution for "
+                "cross-model steering, and an open question of whether richer interventions would succeed.")
     with open("paper/results_body.tex", "w") as fh:
         fh.write("".join(body))
     print("Wrote paper/results.tex and paper/results_body.tex")
