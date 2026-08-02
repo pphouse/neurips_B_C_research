@@ -22,6 +22,7 @@ def main():
     dom = L("outputs/b_domain/seeds_summary.json")
     coll = L("outputs/b_mvp/collective_probe.json") or {}
     causal = L("outputs/b_mvp/causal_shared_summary.json") or {}
+    axis = L("outputs/b_mvp/shared_axis_control.json") or {}
     summ = L("data/brca1_variants_summary.json")
     mis = summ["missense_by_domain"]
 
@@ -46,6 +47,8 @@ def main():
         "domShared": f(coll.get("RING_vs_BRCT/shared")), "domPrivProt": f(coll.get("RING_vs_BRCT/priv_prot")),
         "domPrivDna": f(coll.get("RING_vs_BRCT/priv_dna")),
         "esmCausalCorr": f(causal.get("corr_esm_plus_dms")),
+        "cosDomain": f(axis.get("cos_domain")), "cosCross": f(axis.get("cos_cross")),
+        "cosRand": f(axis.get("cos_random_mean")), "cosRandPctile": f(axis.get("cos_random_p95")),
     }
     with open("paper/results.tex", "w") as fh:
         for k, v in macros.items():
@@ -88,6 +91,7 @@ def main():
                 f"({macros['dmsDNA']}); the protein probe ({macros['dmsProt']}) and concatenation "
                 f"({macros['dmsConcat']}) remain stronger, as ESM-2 already captures missense "
                 "effects well. The result holds domain-disjoint.")
+    body.append("\n" + dms_table())
     body.append("\n\n\\paragraph{Biological structure of the codes.} Probing the learned codes on "
                 f"held-out variants, the shared representation predicts loss-of-function "
                 f"(AUROC {macros['lofShared']}) and protein domain ({macros['domShared']}). "
@@ -98,7 +102,11 @@ def main():
     body.append("\n\n\\paragraph{A shared functional axis.} The direction of maximal DMS "
                 "correlation, fit independently in each model's activation space, maps to nearly "
                 f"the same point in the crosscoder's shared space (cosine {macros['sharedCos']}): "
-                "the crosscoder identifies the two models' functional axes as one shared latent.")
+                "the crosscoder identifies the two models' functional axes as one shared latent. "
+                f"This is specific, not an artifact of alignment: the two \\emph{{domain}} directions "
+                f"also align ({macros['cosDomain']}), but a functional-vs-domain pair does not "
+                f"({macros['cosCross']}), and random direction pairs give {macros['cosRand']} "
+                f"($95$th pctile $|{{\\cos}}|={macros['cosRandPctile']}$).")
     if causal:
         body.append("\n\n\\paragraph{Causal probing (limits).} Injecting this shared functional "
                     "direction into ESM-2 shifts its masked-marginal variant score in a "
