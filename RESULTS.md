@@ -44,6 +44,10 @@ and cross-modal alignment, not raw accuracy.
 - The same injection into Evo2's likelihood is non-specific (≈ random-direction control).
 - → representational alignment does NOT imply an interchangeable causal handle (reported as a caution).
 
-## Research C — DeltaEvo (in progress / see outputs/c_*)
-- Evo2 LoRA autograd feasible via `defuse_inference_tensors` (clone inference-tensor buffers).
-- LoRA fine-tune (LOF-vs-FUNC, BRCT→RING OOD) + matched base/ft activation extraction + Delta-Crosscoder taxonomy.
+## Research C — DeltaEvo (complete)
+- Evo2 LoRA autograd feasible via `defuse_inference_tensors` (clone inference-tensor buffers). LoRA on blocks 20–26 MLPs.
+- **OOD (BRCT→RING) LOF classification**: base frozen-head 0.562 → fine-tuned-backbone frozen-head 0.614 → LoRA end-to-end **0.665**. So disease fine-tuning adapts the backbone (not head-only).
+- Mean per-variant backbone change ‖Δft − Δbase‖ = **4.56** (non-trivial).
+- **Delta-Crosscoder** reconstructs the base→ft difference better than a standard crosscoder (ΔFVE **+1.50**). Note absolute delta-FVE is negative (model diff is small/noisy for narrow fine-tuning).
+- **Taxonomy**: 246 shared, **10 amplified, 0 fine-tune-specific** → narrow fine-tuning *amplifies existing latents* (reuse hypothesis H1), doesn't add new ones. Amplified latents weakly LOF-selective (0.53).
+- Training note: epoch-1 collapse fixed with grad clipping + LR 2e-4; 1 epoch used.
