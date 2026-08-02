@@ -19,7 +19,7 @@ from scipy.stats import spearmanr
 
 from cdd.crosscoder.data import load_paired
 from cdd.crosscoder.model import CrosscoderConfig, SharedPrivateCrosscoder
-from cdd.interventions.evo2_patch import variant_delta_score
+from cdd.interventions.evo2_patch import Patcher
 from cdd.interventions.esm_patch import EsmScorer
 from cdd.utils.common import load_yaml, save_json, set_seed
 
@@ -110,18 +110,18 @@ def main():
         for i in cand:
             r = meta.iloc[i]
             act = float(zs_d[i, f])
-            # Evo2 ablation: subtract latent contribution at SNV pos
+            # Evo2: cache ref LL once, then score var under base/ablation/control patches
             ref_seq, var_seq, idx = parse_seq(seq_chr17, int(r.pos), r.ref, r.alt)
-            base_d = variant_delta_score(evo, evo.tokenizer, ref_seq, var_seq,
-                                         cfg["dna_layer"], pos=idx, patch_vec=None)
+            ref_ids = torch.tensor(evo.tokenizer.tokenize(ref_seq), dtype=torch.int).unsqueeze(0).cuda()
+            var_ids = torch.tensor(evo.tokenizer.tokenize(var_seq), dtype=torch.int).unsqueeze(0).cuda()
             patch = (-args.alpha * act * dir_d_raw)
-            abl_d = variant_delta_score(evo, evo.tokenizer, ref_seq, var_seq,
-                                        cfg["dna_layer"], pos=idx, patch_vec=patch)
-            # control: random matched-norm direction
             rnd = torch.tensor(rng.standard_normal(dir_d_raw.shape[0]), device=dev, dtype=dir_d_raw.dtype)
             rnd = rnd / rnd.norm() * patch.norm()
-            ctl_d = variant_delta_score(evo, evo.tokenizer, ref_seq, var_seq,
-                                        cfg["dna_layer"], pos=idx, patch_vec=rnd)
+            with Patcher(evo, cfg["dna_layer"]) as p:
+                ll_ref = p.scored_forward(ref_ids)
+                base_d = p.scored_forward(var_ids, pos=idx, delta_vec=None) - ll_ref
+                abl_d = p.scored_forward(var_ids, pos=idx, delta_vec=patch) - ll_ref
+                ctl_d = p.scored_forward(var_ids, pos=idx, delta_vec=rnd) - ll_ref
             # ESM ablation
             wt_win, ridx = prot_window(protein, int(r.aa_pos), r.aa_alt)
             L = int(cfg["prot_layer"][1:])
