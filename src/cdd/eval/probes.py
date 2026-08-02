@@ -29,7 +29,7 @@ def cca_transform(Xtr_a, Xtr_b, Xte_a, Xte_b, n_comp=16):
     if min(Xtr_a.shape[0], Xte_a.shape[0]) < 3:
         raise ValueError("too few samples for CCA")
     n_comp = min(n_comp, Xtr_a.shape[1], Xtr_b.shape[1], Xtr_a.shape[0] - 1)
-    cca = CCA(n_components=n_comp, max_iter=1000)
+    cca = CCA(n_components=n_comp, max_iter=500, tol=1e-4)
     cca.fit(Xtr_a, Xtr_b)
     Za_tr, _ = cca.transform(Xtr_a, Xtr_b)
     Za_te, Zb_te = cca.transform(Xte_a, Xte_b)

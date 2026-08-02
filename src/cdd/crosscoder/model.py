@@ -43,20 +43,26 @@ class CrosscoderConfig:
     k_private: int = 64       # latent width of each private space
     topk_shared: int = 16     # BatchTopK L0 for shared
     topk_private: int = 16    # BatchTopK L0 for private
+    d_align: int = 32         # dim of the linear cross-modal alignment embedding
     tie_shared_decoder_norm: bool = True
 
 
 class Branch(nn.Module):
-    """One modality's shared+private encoders and decoders."""
+    """One modality's shared+private encoders and decoders, plus a linear alignment head.
 
-    def __init__(self, d_in: int, k_shared: int, k_private: int):
+    The alignment head produces a low-dimensional *linear* embedding used for cross-modal
+    alignment/retrieval (like a learned CCA), which avoids the information loss of the ReLU
+    sparse code. The sparse ReLU shared code is kept for reconstruction + interpretability.
+    """
+
+    def __init__(self, d_in: int, k_shared: int, k_private: int, d_align: int = 32):
         super().__init__()
         self.enc_shared = nn.Linear(d_in, k_shared)
         self.enc_private = nn.Linear(d_in, k_private)
+        self.enc_align = nn.Linear(d_in, d_align)
         self.dec_shared = nn.Linear(k_shared, d_in, bias=False)
         self.dec_private = nn.Linear(k_private, d_in, bias=False)
         self.bias = nn.Parameter(torch.zeros(d_in))
-        # unit-norm decoder columns (standard SAE init)
         with torch.no_grad():
             for dec in (self.dec_shared, self.dec_private):
                 dec.weight.data = F.normalize(dec.weight.data, dim=0)
@@ -67,6 +73,9 @@ class Branch(nn.Module):
         zp = F.relu(self.enc_private(xs))
         return zs, zp
 
+    def align(self, x):
+        return self.enc_align(x - self.bias)
+
     def decode(self, zs, zp):
         return self.dec_shared(zs) + self.dec_private(zp) + self.bias
 
@@ -75,12 +84,14 @@ class SharedPrivateCrosscoder(nn.Module):
     def __init__(self, cfg: CrosscoderConfig):
         super().__init__()
         self.cfg = cfg
-        self.dna = Branch(cfg.d_dna, cfg.k_shared, cfg.k_private)
-        self.prot = Branch(cfg.d_prot, cfg.k_shared, cfg.k_private)
+        self.dna = Branch(cfg.d_dna, cfg.k_shared, cfg.k_private, cfg.d_align)
+        self.prot = Branch(cfg.d_prot, cfg.k_shared, cfg.k_private, cfg.d_align)
 
     def forward(self, x_dna, x_prot):
         zs_d, zp_d = self.dna.encode(x_dna)
         zs_p, zp_p = self.prot.encode(x_prot)
+        a_d = self.dna.align(x_dna)
+        a_p = self.prot.align(x_prot)
         # sparsify
         zs_d_t = batch_topk(zs_d, self.cfg.topk_shared)
         zs_p_t = batch_topk(zs_p, self.cfg.topk_shared)
@@ -90,7 +101,7 @@ class SharedPrivateCrosscoder(nn.Module):
         xhat_p = self.prot.decode(zs_p_t, zp_p_t)
         return dict(
             zs_d=zs_d_t, zs_p=zs_p_t, zp_d=zp_d_t, zp_p=zp_p_t,
-            zs_d_pre=zs_d, zs_p_pre=zs_p,
+            zs_d_pre=zs_d, zs_p_pre=zs_p, a_d=a_d, a_p=a_p,
             xhat_d=xhat_d, xhat_p=xhat_p,
         )
 
@@ -107,10 +118,11 @@ class SharedPrivateCrosscoder(nn.Module):
 
     @torch.no_grad()
     def encode_all(self, x_dna, x_prot):
-        """Dense shared + sparse shared + sparse private codes for evaluation."""
+        """Alignment embeddings (for retrieval/probing) + sparse shared/private codes."""
         zs_d, zp_d = self.dna.encode(x_dna)
         zs_p, zp_p = self.prot.encode(x_prot)
         return dict(
+            align_dna=self.dna.align(x_dna), align_prot=self.prot.align(x_prot),
             shared_dna_dense=zs_d, shared_prot_dense=zs_p,
             shared_dna=batch_topk(zs_d, self.cfg.topk_shared),
             shared_prot=batch_topk(zs_p, self.cfg.topk_shared),
@@ -153,10 +165,12 @@ def orthogonality(zs, zp):
 
 def crosscoder_loss(out, x_dna, x_prot, w):
     l_rec = nmse(x_dna, out["xhat_d"]) + nmse(x_prot, out["xhat_p"])
+    # primary cross-modal alignment on the linear embedding (deep-CCA-like)
+    l_contrast = info_nce(out["a_d"], out["a_p"], temp=w.get("temp", 0.1))
+    # keep the sparse shared codes cross-modally consistent (for interpretability)
     l_align = F.mse_loss(
         F.normalize(out["zs_d_pre"], dim=-1), F.normalize(out["zs_p_pre"], dim=-1)
     )
-    l_contrast = info_nce(out["zs_d_pre"], out["zs_p_pre"], temp=w.get("temp", 0.1))
     l_orth = orthogonality(out["zs_d"], out["zp_d"]) + orthogonality(out["zs_p"], out["zp_p"])
     total = (
         w["rec"] * l_rec

@@ -45,7 +45,11 @@ def main():
         d_dna=Xd.shape[1], d_prot=Xp.shape[1],
         k_shared=cfg["k_shared"], k_private=cfg["k_private"],
         topk_shared=cfg["topk_shared"], topk_private=cfg["topk_private"],
+        d_align=cfg.get("d_align", 32),
     )
+    # Seed immediately before init so model initialization + SGD RNG are reproducible and
+    # independent of RNG consumed during data loading (PCA); retrieval quality depends on init.
+    set_seed(seed)
     model = SharedPrivateCrosscoder(ccfg).to(dev)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.get("lr", 1e-3))
     w = cfg["loss_weights"]

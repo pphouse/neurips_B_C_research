@@ -29,12 +29,14 @@ def load_model(run_dir, dev):
 
 def codes(model, Xd, Xp, dev):
     """Returns sparse shared (zs_d/zs_p), sparse private (zp_d/zp_p),
-    and dense shared (zs_d_dense/zs_p_dense) codes as numpy arrays."""
+    and the linear alignment embeddings (align_dna/align_prot) as numpy arrays.
+    Retrieval and the shared-representation probe use the alignment embedding;
+    interpretability uses the sparse shared/private codes."""
     with torch.no_grad():
         a = model.encode_all(torch.tensor(Xd, device=dev), torch.tensor(Xp, device=dev))
     n = {k: v.cpu().numpy() for k, v in a.items()}
     return (n["shared_dna"], n["shared_prot"], n["priv_dna"], n["priv_prot"],
-            n["shared_dna_dense"], n["shared_prot_dense"])
+            n["align_dna"], n["align_prot"])
 
 
 def enrichment(z, labels, label_names, thresh=0.70):
