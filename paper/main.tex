@@ -29,17 +29,20 @@ mechanisms internally, or complementary modality-specific ones. We introduce
 crosscoder} that operates not on raw activations but on \emph{paired variant-induced
 activation deltas}: for each missense variant we compute
 $\Delta h_{\mathrm{DNA}}=h_{\mathrm{DNA}}(\text{mut})-h_{\mathrm{DNA}}(\text{wt})$ in Evo\,2 and
-$\Delta h_{\mathrm{PROT}}$ in ESM-2, and learn shared and modality-private sparse latents
-that reconstruct both. On the BRCA1 saturation-genome-editing benchmark
-(\brcaNmis{} missense variants with deep mutational scanning function scores) the shared
-code (i)~aligns the two models well enough to retrieve the paired variant across modalities
-far above chance (Recall@1 \retRone{} vs.\ CCA \retRoneCCA{}), (ii)~predicts DMS function
-scores under a residue-disjoint split competitively with a concatenation baseline while
-using \Kshared{} interpretable dimensions, and (iii)~yields latents that are enriched for
-protein domains and loss-of-function. Causally ablating a shared latent's decoder direction
-inside \emph{both} models moves their variant scores together, evidence that the latent
-captures a genuinely shared mechanism rather than a correlational artifact. We release code,
-activations, and the full evaluation harness.
+$\Delta h_{\mathrm{PROT}}$ in ESM-2, and learn a shared linear alignment space together with
+shared and modality-private sparse latents that reconstruct both. On the BRCA1
+saturation-genome-editing benchmark (\brcaNmis{} missense variants with deep mutational
+scanning function scores) the shared representation (i)~retrieves the paired variant across
+modalities well above a strong linear-CCA baseline (Recall@1 \retRone{} vs.\ \retRoneCCA{}),
+(ii)~predicts DMS function scores better than CCA and the single-model DNA probe, and
+(iii)~generalizes to a held-out protein domain (train BRCT, test RING). Probing the codes,
+the shared representation predicts loss-of-function (AUROC \lofShared{}) and protein domain,
+while modality-private codes capture complementary structure; the two models' functional
+axes map to nearly the same shared latent (cosine \sharedCos{}). Finally, we test whether
+this representational alignment yields \emph{causal} cross-model handles: injecting the
+shared functional direction shifts ESM-2's variant score in a DMS-correlated way, but the
+same intervention on Evo\,2's likelihood is non-specific---representational alignment does
+not imply interchangeable causal control. We release code, activations, and the full harness.
 \end{abstract}
 
 \section{Introduction}
@@ -73,9 +76,10 @@ an explicit \emph{shared / DNA-private / protein-private} factorization. Our con
 \item Learning on \emph{paired variant-induced deltas} with an explicit shared--private split,
 trained with reconstruction, cross-modal alignment, contrastive, and orthogonality losses
 under BatchTopK sparsity.
-\item A rigorous BRCA1 evaluation---cross-modal retrieval, residue- and domain-disjoint DMS
-and ClinVar prediction, annotation enrichment, and a \emph{cross-model causal ablation} that
-perturbs the same latent inside both Evo\,2 and ESM-2.
+\item A rigorous, multi-seed BRCA1 evaluation---cross-modal retrieval, residue- and
+domain-disjoint DMS prediction, biological probing of the shared and private codes, and a
+\emph{cross-model causal probe} with an honest negative result (aligned representations are
+not causally interchangeable).
 \end{itemize}
 
 \section{Related Work}
@@ -92,6 +96,16 @@ central dogma---a DNA and a protein model of the \emph{same} variant. \textbf{Va
 prediction.} DMS assays such as BRCA1 SGE \citep{findlay2018brca1} provide continuous
 functional labels; we use them not as a leaderboard target but to test whether shared latents
 carry mechanism.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../figures/fig_schematic.pdf}
+\caption{\textbf{CentralDogma-$\Delta$CC.} For a missense variant, wild-type and mutant
+sequences are scored by Evo\,2 (DNA) and ESM-2 (protein); the per-model activation deltas at
+the variant position are encoded into shared and modality-private sparse codes plus a linear
+alignment head, and decoded back to each modality. Shared codes are aligned across modalities.}
+\label{fig:schematic}
+\end{figure}
 
 \section{Method}
 \label{sec:method}
@@ -115,8 +129,12 @@ z^{m}_{p}=\mathrm{ReLU}(E^{m}_{p}(\Delta h_m-b_m)),\quad
 \widehat{\Delta h}_m = D^{m}_{s}\,\tilde z^{m}_{s} + D^{m}_{p}\,\tilde z^{m}_{p} + b_m,
 \]
 where $\tilde z$ applies BatchTopK \citep{bussmann2024batchtopk} (keep the $k\!\cdot\!B$
-largest activations per code block across the batch). Shared codes of the same variant are
-aligned across modalities. The training objective is
+largest activations per code block across the batch). In addition each modality has a
+low-dimensional \emph{linear} alignment head $a_m=W^m_{\mathrm{align}}(\Delta h_m-b_m)$; the
+cross-modal contrastive objective operates on $a_m$ (a learned CCA), which we found essential
+to avoid the mode collapse that a ReLU-sparse shared code suffers under pure alignment. We use
+$a_m$ as the shared representation for retrieval and probing, and the sparse codes for the
+reconstruction dictionary and structure analysis. The training objective is
 \[
 \mathcal{L}= \underbrace{\mathrm{NMSE}_{\mathrm{DNA}}+\mathrm{NMSE}_{\mathrm{PROT}}}_{\text{reconstruction}}
 +\lambda_{a}\,\|\bar z^{\mathrm{DNA}}_{s}-\bar z^{\mathrm{PROT}}_{s}\|^2
@@ -149,6 +167,16 @@ linear CCA, and PLS. All numbers are on held-out splits.
 
 \section{Results}
 \label{sec:results}
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{../figures/fig_results.pdf}
+\caption{\textbf{Results (5 seeds).} (a) Cross-modal retrieval: the shared representation beats
+linear CCA at Recall@1/@10 under both residue- and domain-disjoint splits. (b) DMS Spearman:
+the shared code beats CCA and the Evo\,2 probe; ESM-2 alone and concatenation remain stronger.
+(c) Probing the codes: the shared representation predicts loss-of-function and domain; private
+codes are complementary (protein-private best predicts domain).}
+\label{fig:results}
+\end{figure}
 \input{results_body}
 
 \section{Discussion and limitations}

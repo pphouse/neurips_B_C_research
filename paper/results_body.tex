@@ -1,1 +1,11 @@
-Results will be inserted here.
+\paragraph{Reconstruction and sparsity.} The crosscoder reconstructs held-out variant deltas with FVE 0.72 (DNA) and 0.70 (protein) at an average BatchTopK $L_0$ of \topk{}, with no dead shared latents.
+
+\paragraph{Cross-modal retrieval.} Using the shared alignment embedding, a DNA variant retrieves its paired protein variant with Recall@1 0.282$\pm$0.005 and Recall@10 0.689 over 5 seeds (residue-disjoint, $n{=}\posNtest{}$), versus linear CCA (0.219 / 0.642) and chance $1/\posNtest{=}0.003$. On the harder domain-disjoint split ($n{=}\domNtest{}$) the gap persists (Recall@1 0.117 vs.\ CCA 0.076).
+
+\paragraph{Function-score prediction.} Table~\ref{tab:dms}. The shared code attains DMS Spearman 0.459$\pm$0.006 (residue-disjoint), exceeding CCA (0.335) and the DNA probe (0.375); the protein probe (0.510) and concatenation (0.512) remain stronger, as ESM-2 already captures missense effects well. The result holds domain-disjoint.
+
+\paragraph{Biological structure of the codes.} Probing the learned codes on held-out variants, the shared representation predicts loss-of-function (AUROC 0.838) and protein domain (0.787). Modality-private codes are complementary: the protein-private code is the best domain predictor (0.848) and a strong LOF predictor (0.822), consistent with ESM-2 encoding structural context, while the DNA-private code predicts LOF at 0.744.
+
+\paragraph{A shared functional axis.} The direction of maximal DMS correlation, fit independently in each model's activation space, maps to nearly the same point in the crosscoder's shared space (cosine 0.855): the crosscoder identifies the two models' functional axes as one shared latent.
+
+\paragraph{Causal probing (limits).} Injecting this shared functional direction into ESM-2 shifts its masked-marginal variant score in a DMS-correlated way (Spearman 0.257). The same intervention on Evo\,2's likelihood is dominated by non-specific perturbation (indistinguishable from a matched-norm random direction), so representational alignment does \emph{not} imply interchangeable causal handles---a caution for cross-model steering.

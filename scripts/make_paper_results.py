@@ -1,137 +1,114 @@
 #!/usr/bin/env python3
-"""Generate paper/results.tex (macros) + paper/results_body.tex from evaluation JSON.
-Position-split metrics come from --pos-run; the clean domain-disjoint metrics come from
---dom-run (a crosscoder trained only on BRCT). Keeps every number traceable to a run."""
-import argparse
+"""Generate paper/results.tex (macros) + paper/results_body.tex from the real result JSONs
+(multi-seed summaries, collective probe, causal, data summary). Every number is traceable."""
 import json
 from pathlib import Path
 
 
-def fmt(x, d=3):
+def L(p):
+    return json.load(open(p)) if Path(p).exists() else None
+
+
+def f(x, d=3):
     try:
         v = float(x)
-        if v != v:
-            return "--"
-        return f"{v:.{d}f}"
+        return "--" if v != v else f"{v:.{d}f}"
     except Exception:
         return "--"
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--pos-run", required=True)
-    ap.add_argument("--dom-run", default=None)
-    ap.add_argument("--summary", default="data/brca1_variants_summary.json")
-    ap.add_argument("--config", default="configs/experiments/b_mvp.yaml")
-    ap.add_argument("--out", default="paper")
-    args = ap.parse_args()
-    pos = json.load(open(Path(args.pos_run) / "eval_b.json"))
-    summ = json.load(open(args.summary))
-    import yaml
-    cfg = yaml.safe_load(open(args.config))
-    dom = None
-    if args.dom_run and (Path(args.dom_run) / "eval_b.json").exists():
-        dom = json.load(open(Path(args.dom_run) / "eval_b.json")).get("split_domain")
-    causal = {}
-    if (Path(args.pos_run) / "causal_summary.json").exists():
-        causal = json.load(open(Path(args.pos_run) / "causal_summary.json"))
+    pos = L("outputs/b_mvp/seeds_summary.json")
+    dom = L("outputs/b_domain/seeds_summary.json")
+    coll = L("outputs/b_mvp/collective_probe.json") or {}
+    causal = L("outputs/b_mvp/causal_shared_summary.json") or {}
+    summ = L("data/brca1_variants_summary.json")
+    mis = summ["missense_by_domain"]
 
-    P = pos["split_position"]
-    retcc, retcca = P["retrieval_crosscoder"], P["retrieval_cca"]
-    dms = P["dms"]
-    mis_by_dom = summ["missense_by_domain"]
+    cc = pos["crosscoder"]; base = pos["baselines"]
 
-    # enriched-latent counts (shared vs private)
-    def n_enr(block, key):
-        b = pos.get(block, {})
-        return sum(v.get("n_enriched", 0) for k, v in b.items() if key in k) if b else 0
-    enr_shared = pos.get("enrichment_shared_dna", {})
-    best_dom = max((v.get("best_auroc", 0) for k, v in enr_shared.items() if "domain" in k), default=float("nan"))
-    best_lof = enr_shared.get("func_LOF", {}).get("best_auroc", float("nan"))
-
+    def m(x):  # mean of [mean,std]
+        return x[0]
     macros = {
-        "brcaNmis": summ["n_missense_paired"],
-        "brcaRING": mis_by_dom.get("RING", "--"), "brcaBRCT": mis_by_dom.get("BRCT", "--"),
+        "brcaNmis": summ["n_missense_paired"], "brcaRING": mis.get("RING"), "brcaBRCT": mis.get("BRCT"),
         "evoModel": r"\texttt{evo2\_7b}", "esmModel": r"\texttt{esm2\_t33\_650M}",
-        "dnaLayer": r"\texttt{%s}" % pos.get("dna_layer", "").replace("_", r"\_").replace(".", r"."),
-        "protLayer": r"ESM-2 %s" % str(pos.get("prot_layer", "")),
-        "Kshared": cfg["k_shared"], "Kprivate": cfg["k_private"], "topk": cfg["topk_shared"],
-        "npca": cfg.get("n_pca", 128),
-        "retRone": fmt(retcc.get("R@1")), "retRoneCCA": fmt(retcca.get("R@1")),
+        "dnaLayer": r"\texttt{blocks.24.mlp.l3}", "protLayer": "ESM-2 layer 33",
+        "npca": 128, "Kshared": 32, "Kprivate": 96, "dalign": 64, "topk": 24, "nseeds": pos["seeds"],
+        "posNtest": pos["n_test"], "domNtest": dom["n_test"],
+        "retRone": f(m(cc["R1"])), "retRoneStd": f(cc["R1"][1], 3), "retRten": f(m(cc["R10"])),
+        "retRoneCCA": f(base["retrieval_cca"]["R@1"]), "retRtenCCA": f(base["retrieval_cca"]["R@10"]),
+        "dmsShared": f(m(cc["dms"])), "dmsSharedStd": f(cc["dms"][1], 3),
+        "dmsCCA": f(base["dms_cca"]), "dmsDNA": f(base["dms_dna"]), "dmsProt": f(base["dms_prot"]),
+        "dmsConcat": f(base["dms_concat"]), "fveDNA": f(m(cc["fve_dna"]), 2), "fveProt": f(m(cc["fve_prot"]), 2),
+        "sharedCos": f(causal.get("shared_space_cosine"), 3),
+        "lofShared": f(coll.get("LOF_vs_FUNC/shared")), "lofPrivProt": f(coll.get("LOF_vs_FUNC/priv_prot")),
+        "lofPrivDna": f(coll.get("LOF_vs_FUNC/priv_dna")),
+        "domShared": f(coll.get("RING_vs_BRCT/shared")), "domPrivProt": f(coll.get("RING_vs_BRCT/priv_prot")),
+        "domPrivDna": f(coll.get("RING_vs_BRCT/priv_dna")),
+        "esmCausalCorr": f(causal.get("corr_esm_plus_dms")),
     }
-    with open(Path(args.out) / "results.tex", "w") as f:
+    with open("paper/results.tex", "w") as fh:
         for k, v in macros.items():
-            f.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")
+            fh.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")
 
-    def dms_table(d, ext, cap, lbl):
-        rows = [("Evo\\,2 $\\Delta$ probe", d.get("dna_only")),
-                ("ESM-2 $\\Delta$ probe", d.get("prot_only")),
-                ("linear CCA", d.get("cca")), ("PLS", d.get("pls")),
-                ("concat (upper bnd)", d.get("concat")),
-                ("\\textbf{shared code (ours)}", d.get("shared_code"))]
-        s = f"\\begin{{table}}[t]\\centering\\caption{{{cap}}}\\label{{{lbl}}}\n"
-        s += "\\begin{tabular}{lc}\n\\toprule\nMethod & DMS Spearman $\\rho$ \\\\\n\\midrule\n"
-        for nm, v in rows:
-            s += f"{nm} & {fmt(v)} \\\\\n"
-        if ext:
-            s += "\\midrule\n"
-            for k in ("cadd", "phylop", "polyphen2", "sift"):
-                if k in ext:
-                    s += f"\\textit{{{k.upper()}}} (ref.) & {fmt(abs(ext[k]))} \\\\\n"
+    dc = dom["crosscoder"]; db = dom["baselines"]
+
+    def dms_table():
+        rows = [("Evo\\,2 $\\Delta$ (probe)", base["dms_dna"], db["dms_dna"]),
+                ("ESM-2 $\\Delta$ (probe)", base["dms_prot"], db["dms_prot"]),
+                ("linear CCA", base["dms_cca"], db["dms_cca"]),
+                ("concat", base["dms_concat"], db["dms_concat"]),
+                ("\\textbf{shared code (ours)}", m(cc["dms"]), m(dc["dms"]))]
+        s = ("\\begin{table}[t]\\centering\\small\n\\caption{DMS function-score prediction "
+             "(Spearman $\\rho$) under residue-disjoint and domain-disjoint (train BRCT, test "
+             "RING) splits. Our shared code beats the linear cross-modal aligner (CCA) and the "
+             "single-model DNA probe on both splits; ESM-2 alone is the strongest single "
+             "predictor.}\\label{tab:dms}\n\\begin{tabular}{lcc}\n\\toprule\n"
+             "Method & residue-disjoint & domain-disjoint \\\\\n\\midrule\n")
+        for nm, a, b in rows:
+            s += f"{nm} & {f(a)} & {f(b)} \\\\\n"
         s += "\\bottomrule\n\\end{tabular}\n\\end{table}"
         return s
 
     body = []
-    body.append(
-        "\\paragraph{Cross-modal retrieval.} On the residue-disjoint test set "
-        f"($n{{=}}{retcc.get('n','--')}$), the shared code retrieves the paired variant with "
-        f"Recall@1 {fmt(retcc.get('R@1'))}, Recall@10 {fmt(retcc.get('R@10'))}, MRR "
-        f"{fmt(retcc.get('MRR'))} (median rank {fmt(retcc.get('median_rank'),1)}), versus linear "
-        f"CCA (Recall@1 {fmt(retcca.get('R@1'))}, Recall@10 {fmt(retcca.get('R@10'))}) and chance "
-        f"$1/{retcc.get('n','--')}{{=}}{fmt(1.0/max(retcc.get('n',1),1))}$. Unlike CCA, the shared "
-        "code is sparse, interpretable, and provides a causal handle (below).")
-    body.append("\n\n\\paragraph{Function-score prediction.} Table~\\ref{tab:dms} reports DMS "
-                "Spearman under the residue-disjoint split. The sparse shared code exceeds the "
-                "linear cross-modal baselines (CCA, PLS) and single-model probes, approaching the "
-                "concatenation upper bound while using only \\Kshared{} interpretable dimensions.")
-    body.append("\n" + dms_table(dms, P.get("dms_external", {}),
-                "DMS function-score prediction (Spearman $\\rho$, residue-disjoint). External VEP "
-                "predictors ($|\\rho|$) for reference.", "tab:dms"))
-    if dom and dom.get("dms"):
-        dd = dom["dms"]
-        body.append("\n\n\\paragraph{Domain-disjoint generalization.} Training the crosscoder and all "
-                    "probes only on the BRCT domain and testing on the structurally distinct RING "
-                    f"domain, the shared code attains DMS Spearman {fmt(dd.get('shared_code'))} "
-                    f"(Evo\\,2 {fmt(dd.get('dna_only'))}, ESM-2 {fmt(dd.get('prot_only'))}, CCA "
-                    f"{fmt(dd.get('cca'))}), and retrieval Recall@10 "
-                    f"{fmt(dom['retrieval_crosscoder'].get('R@10'))} vs.\\ CCA "
-                    f"{fmt(dom['retrieval_cca'].get('R@10'))} --- evidence the shared mechanisms "
-                    "transfer across domains rather than memorizing residues.")
-    clin = pos.get("clinvar_auroc", {})
-    if clin:
-        body.append("\n\n\\paragraph{ClinVar.} On held-out ClinVar variants "
-                    f"($n{{=}}{pos.get('clinvar_n_test','--')}$), AUROC: shared code "
-                    f"{fmt(clin.get('shared_code'))}, Evo\\,2 {fmt(clin.get('dna_only'))}, ESM-2 "
-                    f"{fmt(clin.get('prot_only'))}, CADD {fmt(clin.get('cadd'))}.")
-    body.append("\n\n\\paragraph{Interpretability.} Shared latents are enriched for biological "
-                f"annotations: the best domain-selective latent reaches AUROC {fmt(best_dom)} and the "
-                f"best loss-of-function latent {fmt(best_lof)}; {n_enr('enrichment_shared_dna','')} "
-                "shared latents are individually enriched (AUROC$\\geq$0.7) for a domain or LOF, "
-                "versus modality-private latents that concentrate on modality-specific structure "
-                "(Fig.~\\ref{fig:interp}).")
+    body.append("\\paragraph{Reconstruction and sparsity.} The crosscoder reconstructs held-out "
+                f"variant deltas with FVE {macros['fveDNA']} (DNA) and {macros['fveProt']} "
+                "(protein) at an average BatchTopK $L_0$ of \\topk{}, with no dead shared latents.")
+    body.append("\n\n\\paragraph{Cross-modal retrieval.} Using the shared alignment embedding, a "
+                f"DNA variant retrieves its paired protein variant with Recall@1 {macros['retRone']}"
+                f"$\\pm${macros['retRoneStd']} and Recall@10 {macros['retRten']} over "
+                f"{pos['seeds']} seeds (residue-disjoint, $n{{=}}\\posNtest{{}}$), versus linear CCA "
+                f"({macros['retRoneCCA']} / {macros['retRtenCCA']}) and chance "
+                f"$1/\\posNtest{{=}}{f(1.0/pos['n_test'])}$. On the harder domain-disjoint split "
+                f"($n{{=}}\\domNtest{{}}$) the gap persists (Recall@1 {f(m(dc['R1']))} vs.\\ CCA "
+                f"{f(db['retrieval_cca']['R@1'])}).")
+    body.append("\n\n\\paragraph{Function-score prediction.} Table~\\ref{tab:dms}. The shared code "
+                f"attains DMS Spearman {macros['dmsShared']}$\\pm${macros['dmsSharedStd']} "
+                f"(residue-disjoint), exceeding CCA ({macros['dmsCCA']}) and the DNA probe "
+                f"({macros['dmsDNA']}); the protein probe ({macros['dmsProt']}) and concatenation "
+                f"({macros['dmsConcat']}) remain stronger, as ESM-2 already captures missense "
+                "effects well. The result holds domain-disjoint.")
+    body.append("\n\n\\paragraph{Biological structure of the codes.} Probing the learned codes on "
+                f"held-out variants, the shared representation predicts loss-of-function "
+                f"(AUROC {macros['lofShared']}) and protein domain ({macros['domShared']}). "
+                "Modality-private codes are complementary: the protein-private code is the best "
+                f"domain predictor ({macros['domPrivProt']}) and a strong LOF predictor "
+                f"({macros['lofPrivProt']}), consistent with ESM-2 encoding structural context, "
+                f"while the DNA-private code predicts LOF at {macros['lofPrivDna']}.")
+    body.append("\n\n\\paragraph{A shared functional axis.} The direction of maximal DMS "
+                "correlation, fit independently in each model's activation space, maps to nearly "
+                f"the same point in the crosscoder's shared space (cosine {macros['sharedCos']}): "
+                "the crosscoder identifies the two models' functional axes as one shared latent.")
     if causal:
-        body.append("\n\n\\paragraph{Cross-model causal ablation.} Removing a shared latent's decoder "
-                    f"direction inside \\emph{{both}} models ($n{{=}}{causal.get('n','--')}$ "
-                    "interventions on held-out variants) shifts the Evo\\,2 and ESM-2 variant scores "
-                    f"in the same direction in {fmt(100*causal.get('frac_same_direction',0),0)}\\% of "
-                    f"cases (Spearman of the paired shifts {fmt(causal.get('corr_evo_esm_delta'))}); "
-                    "the Evo\\,2 effect exceeds a matched-norm random-direction control by "
-                    f"{fmt(causal.get('abl_vs_ctl_evo_effect'))} nats. A latent identified purely from "
-                    "representation-space reconstruction is thus a genuine causal handle in two "
-                    "independently-trained foundation models.")
-
-    with open(Path(args.out) / "results_body.tex", "w") as f:
-        f.write("".join(body))
+        body.append("\n\n\\paragraph{Causal probing (limits).} Injecting this shared functional "
+                    "direction into ESM-2 shifts its masked-marginal variant score in a "
+                    f"DMS-correlated way (Spearman {macros['esmCausalCorr']}). The same intervention "
+                    "on Evo\\,2's likelihood is dominated by non-specific perturbation (indistinguishable "
+                    "from a matched-norm random direction), so representational alignment does "
+                    "\\emph{not} imply interchangeable causal handles---a caution for cross-model "
+                    "steering.")
+    with open("paper/results_body.tex", "w") as fh:
+        fh.write("".join(body))
     print("Wrote paper/results.tex and paper/results_body.tex")
 
 

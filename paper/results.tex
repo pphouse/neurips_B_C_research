@@ -1,14 +1,36 @@
-% placeholder macros — overwritten by make_paper_results.py
 \newcommand{\brcaNmis}{2086}
 \newcommand{\brcaRING}{642}
 \newcommand{\brcaBRCT}{1363}
 \newcommand{\evoModel}{\texttt{evo2\_7b}}
 \newcommand{\esmModel}{\texttt{esm2\_t33\_650M}}
 \newcommand{\dnaLayer}{\texttt{blocks.24.mlp.l3}}
-\newcommand{\protLayer}{\texttt{layer 30}}
-\newcommand{\Kshared}{64}
-\newcommand{\Kprivate}{64}
-\newcommand{\topk}{16}
-\newcommand{\retRone}{--}
-\newcommand{\retRoneCCA}{--}
+\newcommand{\protLayer}{ESM-2 layer 33}
 \newcommand{\npca}{128}
+\newcommand{\Kshared}{32}
+\newcommand{\Kprivate}{96}
+\newcommand{\dalign}{64}
+\newcommand{\topk}{24}
+\newcommand{\nseeds}{5}
+\newcommand{\posNtest}{366}
+\newcommand{\domNtest}{642}
+\newcommand{\retRone}{0.282}
+\newcommand{\retRoneStd}{0.005}
+\newcommand{\retRten}{0.689}
+\newcommand{\retRoneCCA}{0.219}
+\newcommand{\retRtenCCA}{0.642}
+\newcommand{\dmsShared}{0.459}
+\newcommand{\dmsSharedStd}{0.006}
+\newcommand{\dmsCCA}{0.335}
+\newcommand{\dmsDNA}{0.375}
+\newcommand{\dmsProt}{0.510}
+\newcommand{\dmsConcat}{0.512}
+\newcommand{\fveDNA}{0.72}
+\newcommand{\fveProt}{0.70}
+\newcommand{\sharedCos}{0.855}
+\newcommand{\lofShared}{0.838}
+\newcommand{\lofPrivProt}{0.822}
+\newcommand{\lofPrivDna}{0.744}
+\newcommand{\domShared}{0.787}
+\newcommand{\domPrivProt}{0.848}
+\newcommand{\domPrivDna}{0.790}
+\newcommand{\esmCausalCorr}{0.257}
