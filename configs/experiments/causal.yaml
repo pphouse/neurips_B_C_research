@@ -1,0 +1,10 @@
+evo2_dir: outputs/act/evo2
+esm_dir: outputs/act/esm
+dna_layer: blocks.24.mlp.l3
+prot_layer: L33
+pooling: local
+n_pca: 128
+evo2_model: evo2_7b
+esm_model: facebook/esm2_t33_650M_UR50D
+chr17_fasta: /home/azureuser/evo/evo2/notebooks/brca1/GRCh37.p13_chr17.fna.gz
+protein_fasta: data/brca1_P38398.fasta

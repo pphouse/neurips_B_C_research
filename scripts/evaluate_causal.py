@@ -72,21 +72,19 @@ def main():
         out = model(torch.tensor(pdd.dna, device=dev), torch.tensor(pdd.prot, device=dev))
         zs_d = out["zs_d"].cpu().numpy()
 
-    # rank shared latents by association with LOF (functional disruption)
-    lof = (meta["func_class"] == "LOF").astype(float).to_numpy()
-    keep = np.isin(meta["func_class"], ["LOF", "FUNC"])
-    from sklearn.metrics import roc_auc_score
-    scores = []
+    # rank shared latents by |Spearman correlation of activation with DMS function score|
+    from scipy.stats import spearmanr
+    dms = meta["dms_score"].to_numpy()
+    keepd = ~np.isnan(dms)
+    scores = np.zeros(zs_d.shape[1])
     for f in range(zs_d.shape[1]):
-        if (zs_d[keep, f] > 0).sum() < 10:
-            scores.append(0.5); continue
-        try:
-            scores.append(roc_auc_score(lof[keep], zs_d[keep, f]))
-        except Exception:
-            scores.append(0.5)
-    scores = np.array(scores)
-    top = np.argsort(-np.abs(scores - 0.5))[: args.n_latents]
-    print("Top shared latents (by |LOF AUROC-0.5|):", [(int(f), round(scores[f], 3)) for f in top])
+        if (zs_d[keepd, f] > 0).sum() < 15:
+            continue
+        c = spearmanr(zs_d[keepd, f], dms[keepd]).correlation
+        scores[f] = 0.0 if c != c else c
+    top = np.argsort(-np.abs(scores))[: args.n_latents]
+    print("Top shared latents (by |Spearman with DMS|):",
+          [(int(f), round(float(scores[f]), 3)) for f in top])
 
     from evo2 import Evo2
     evo = Evo2(cfg.get("evo2_model", "evo2_7b"))
