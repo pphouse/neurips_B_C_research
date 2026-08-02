@@ -1,0 +1,30 @@
+[project]
+name = "cdd"
+version = "0.1.0"
+description = "CentralDogma-DeltaCC / DeltaEvo: cross-modal and cross-model sparse variant-delta crosscoders for genomic and protein language models"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyarrow",
+  "scikit-learn",
+  "scipy",
+  "pyyaml",
+  "matplotlib",
+  "seaborn",
+  "biopython",
+  "openpyxl",
+  "requests",
+  "torch",
+  "transformers",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+outputs/
+logs/
+*.npy
+*.npz
+*.pt
+*.log
+data/raw/
+.venv/
+figures/*.png
