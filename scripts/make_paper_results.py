@@ -59,6 +59,19 @@ def main():
         "cosRandPctile": f(axis.get("cos_random_p95")),
         "esmCausalCorr": f(causal.get("corr_esm_plus_dms")), "causalN": causal.get("n", 40),
     }
+    # ---- Research C (DeltaEvo) macros ----
+    ec = L("outputs/c_delta/eval_c.json"); cb2 = L("outputs/c_delta/c_baseline.json")
+    mm = L("outputs/act/matched/matched_meta.json")
+    if ec and cb2:
+        tax = ec["delta_cc"]["taxonomy_counts"]
+        macros.update({
+            "cLoraOOD": f(cb2["lora_head_OOD"]), "cBaseOOD": f(cb2["base_frozen_OOD"]),
+            "cFtOOD": f(cb2["ft_frozen_OOD"]), "cDiffNorm": f(mm["mean_delta_model_diff_L2"], 2),
+            "cAmplified": tax.get("amplified", 0), "cFtSpecific": ec.get("n_ft_specific", 0),
+            "cShared": tax.get("shared", 0),
+            "cDeltaAdv": f(ec["delta_cc"]["fve_delta"] - ec["standard_cc"]["fve_delta"], 2),
+            "cLofShared": f(ec.get("lof_auroc_shared")), "cLofAmp": f(ec.get("lof_auroc_amplified")),
+        })
     with open("paper/results.tex", "w") as fh:
         for k, v in macros.items():
             fh.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")

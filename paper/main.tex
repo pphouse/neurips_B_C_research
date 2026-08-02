@@ -80,6 +80,9 @@ under BatchTopK sparsity.
 domain-disjoint DMS prediction, biological probing of the shared and private codes, and a
 \emph{cross-model causal probe} with an honest negative result (aligned representations are
 not causally interchangeable).
+\item An extension (\S\ref{sec:c}) that diffs base vs.\ LoRA-disease-fine-tuned Evo\,2 with a
+Delta-Crosscoder, finding that narrow fine-tuning \emph{amplifies existing latents} rather than
+adding new ones.
 \end{itemize}
 
 \section{Related Work}
@@ -186,6 +189,26 @@ codes are complementary (protein-private best predicts domain).}
 \label{fig:results}
 \end{figure}
 \input{results_body}
+
+\section{Extension: model-diffing a disease fine-tune (DeltaEvo)}
+\label{sec:c}
+The same delta framework diffs a model against a fine-tuned copy of itself. We LoRA-fine-tune
+Evo\,2 (rank-8 adapters on the MLPs of blocks 20--26, backbone frozen) to classify BRCA1
+loss-of-function from its variant-position delta activation, on the domain-disjoint split
+(train BRCT, test RING). (Evo\,2's inference stack stores weights as \emph{inference tensors}
+that cannot be differentiated; we re-materialise them to enable LoRA autograd---a small reusable
+recipe.) Fine-tuning improves held-out RING LOF classification from AUROC \cBaseOOD{} (frozen
+backbone + head) to \cLoraOOD{} (LoRA), and the adaptation lives in the backbone: a frozen head
+on the \emph{fine-tuned} activations already reaches \cFtOOD{}, and the mean per-variant
+activation change is $\lVert\Delta_{\mathrm{ft}}-\Delta_{\mathrm{base}}\rVert=\cDiffNorm{}$ (not a
+head-only shortcut). Training a Delta-Crosscoder on the matched $(\Delta_{\mathrm{base}},
+\Delta_{\mathrm{ft}})$ pairs, it reconstructs the base$\to$ft \emph{difference} better than a
+standard crosscoder ($\Delta$FVE $+\cDeltaAdv{}$), and its taxonomy has \cShared{} shared and
+\cAmplified{} \emph{amplified} latents but \cFtSpecific{} fine-tune-\emph{specific} ones: narrow
+disease fine-tuning amplifies existing features rather than introducing new ones, consistent
+with the reuse hypothesis. The amplified latents are only weakly LOF-selective (AUROC
+\cLofAmp{}), leaving open exactly which reweighted features drive the gain---a preliminary but
+encouraging demonstration that Delta-Crosscoders can audit genomic-LM fine-tuning.
 
 \section{Discussion and limitations}
 We are deliberately explicit about what does and does not work. \textbf{(i)~Single gene.}
