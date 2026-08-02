@@ -1,0 +1,168 @@
+\documentclass[10pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
+\usepackage{authblk}
+\usepackage{natbib}
+
+\input{results} % auto-generated numeric macros
+
+\title{\textbf{CentralDogma-$\Delta$CC: Disentangling Shared and Modality-Specific\\
+Variant Mechanisms across Genomic and Protein Language Models}}
+\author{Anonymous}
+\affil{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Genomic language models (e.g.\ Evo\,2) and protein language models (e.g.\ ESM-2) both
+predict variant effects, but it is unknown whether they encode the \emph{same} molecular
+mechanisms internally, or complementary modality-specific ones. We introduce
+\textbf{CentralDogma-$\Delta$CC}, a sparse \emph{cross-architecture, cross-modality
+crosscoder} that operates not on raw activations but on \emph{paired variant-induced
+activation deltas}: for each missense variant we compute
+$\Delta h_{\mathrm{DNA}}=h_{\mathrm{DNA}}(\text{mut})-h_{\mathrm{DNA}}(\text{wt})$ in Evo\,2 and
+$\Delta h_{\mathrm{PROT}}$ in ESM-2, and learn shared and modality-private sparse latents
+that reconstruct both. On the BRCA1 saturation-genome-editing benchmark
+(\brcaNmis{} missense variants with deep mutational scanning function scores) the shared
+code (i)~aligns the two models well enough to retrieve the paired variant across modalities
+far above chance (Recall@1 \retRone{} vs.\ CCA \retRoneCCA{}), (ii)~predicts DMS function
+scores under a residue-disjoint split competitively with a concatenation baseline while
+using \Kshared{} interpretable dimensions, and (iii)~yields latents that are enriched for
+protein domains and loss-of-function. Causally ablating a shared latent's decoder direction
+inside \emph{both} models moves their variant scores together, evidence that the latent
+captures a genuinely shared mechanism rather than a correlational artifact. We release code,
+activations, and the full evaluation harness.
+\end{abstract}
+
+\section{Introduction}
+Foundation models now span the central dogma: Evo\,2 \citep{brixi2026evo2} models DNA at
+single-nucleotide resolution, while ESM-2 \citep{lin2023esm2} models proteins. Both assign
+scores to human coding variants, and both are used for variant effect prediction (VEP).
+Yet a basic mechanistic question is open: when a DNA model and a protein model both flag a
+missense variant, are they responding to the \emph{same} underlying cause (e.g.\ disruption
+of a conserved structural residue), or to different, modality-specific causes (splicing and
+codon context on the DNA side; folding and solvent exposure on the protein side)? Answering
+this requires comparing the models' \emph{internal representations}, not just their output
+scores. This is hard because the two models differ in architecture (StripedHyena vs.\
+Transformer), tokenization (nucleotides vs.\ amino acids), input length, hidden width, and
+training objective; naively aligning raw activations is dominated by global nuisance factors
+such as gene identity and conservation.
+
+We make three observations. First, the object of interest is not the absolute
+representation of a sequence but the \emph{change} a variant induces; taking the paired
+wild-type$\to$mutant activation delta in each model cancels most sequence-identity nuisance
+and focuses on the variant's mechanism. Second, sparse dictionary methods (SAEs,
+crosscoders) provide an interpretable, causally manipulable basis; crosscoders in particular
+were designed to \emph{diff} representations across models \citep{lindsey2024crosscoders}.
+Third, restricting to a single gene (BRCA1) removes the dominant gene-identity shortcut,
+so any cross-modal alignment the model finds must reflect within-gene variant structure.
+
+Combining these, \textbf{CentralDogma-$\Delta$CC} is a crosscoder over paired deltas with
+an explicit \emph{shared / DNA-private / protein-private} factorization. Our contributions:
+\begin{itemize}\itemsep2pt
+\item A crosscoder applied across \emph{heterogeneous biological foundation models}
+(a DNA and a protein model), rather than across layers or across a base/fine-tune pair.
+\item Learning on \emph{paired variant-induced deltas} with an explicit shared--private split,
+trained with reconstruction, cross-modal alignment, contrastive, and orthogonality losses
+under BatchTopK sparsity.
+\item A rigorous BRCA1 evaluation---cross-modal retrieval, residue- and domain-disjoint DMS
+and ClinVar prediction, annotation enrichment, and a \emph{cross-model causal ablation} that
+perturbs the same latent inside both Evo\,2 and ESM-2.
+\end{itemize}
+
+\section{Related Work}
+\textbf{Genomic and protein language models.} Evo\,2 \citep{brixi2026evo2} is a StripedHyena
+genomic model with strong zero-shot VEP, including on BRCA1 SGE data; ESM-2
+\citep{lin2023esm2} is a protein masked-LM whose representations encode structure and
+function. \textbf{Sparse features and crosscoders.} Sparse autoencoders recover
+interpretable features in LMs and, via InterPLM \citep{simon2025interplm}, in protein LMs.
+Crosscoders \citep{lindsey2024crosscoders} extend SAEs to jointly encode multiple
+representation spaces and were introduced for cross-layer and model-diffing analysis; recent
+work applies them to cross-architecture diffing \citep{jiralerspong2026crossarch} and to
+narrow fine-tuning \citep{kassem2026delta,minder2025chat}. We instead diff across the
+central dogma---a DNA and a protein model of the \emph{same} variant. \textbf{Variant effect
+prediction.} DMS assays such as BRCA1 SGE \citep{findlay2018brca1} provide continuous
+functional labels; we use them not as a leaderboard target but to test whether shared latents
+carry mechanism.
+
+\section{Method}
+\label{sec:method}
+\paragraph{Paired variant deltas.} For a missense SNV we build an 8{,}192\,bp
+variant-centred window and score wild-type and mutant sequences with Evo\,2, extracting the
+residual-stream activation at layer $\ell_{\mathrm{DNA}}$ and SNV position; the DNA delta is
+$\Delta h_{\mathrm{DNA}}=h^{\text{mut}}-h^{\text{wt}}\in\mathbb{R}^{d_{\mathrm{DNA}}}$
+($d_{\mathrm{DNA}}{=}4096$). Independently we substitute the residue in the protein and take
+the ESM-2 hidden-state delta $\Delta h_{\mathrm{PROT}}\in\mathbb{R}^{d_{\mathrm{PROT}}}$
+($d_{\mathrm{PROT}}{=}1280$) at the variant residue and layer $\ell_{\mathrm{PROT}}$. Deltas
+are standardized per dimension on the training split.
+
+\paragraph{Shared--private crosscoder.} Each modality $m\in\{\mathrm{DNA},\mathrm{PROT}\}$ has a
+shared encoder/decoder and a private encoder/decoder:
+\[
+z^{m}_{s}=\mathrm{ReLU}(E^{m}_{s}(\Delta h_m-b_m)),\quad
+z^{m}_{p}=\mathrm{ReLU}(E^{m}_{p}(\Delta h_m-b_m)),\quad
+\widehat{\Delta h}_m = D^{m}_{s}\,\tilde z^{m}_{s} + D^{m}_{p}\,\tilde z^{m}_{p} + b_m,
+\]
+where $\tilde z$ applies BatchTopK \citep{bussmann2024batchtopk} (keep the $k\!\cdot\!B$
+largest activations per code block across the batch). Shared codes of the same variant are
+aligned across modalities. The training objective is
+\[
+\mathcal{L}= \underbrace{\mathrm{NMSE}_{\mathrm{DNA}}+\mathrm{NMSE}_{\mathrm{PROT}}}_{\text{reconstruction}}
++\lambda_{a}\,\|\bar z^{\mathrm{DNA}}_{s}-\bar z^{\mathrm{PROT}}_{s}\|^2
++\lambda_{c}\,\mathcal{L}_{\text{InfoNCE}}(z^{\mathrm{DNA}}_s,z^{\mathrm{PROT}}_s)
++\lambda_{o}\,\big(\mathrm{Cov}(z^{\mathrm{DNA}}_s,z^{\mathrm{DNA}}_p)+\mathrm{Cov}(z^{\mathrm{PROT}}_s,z^{\mathrm{PROT}}_p)\big),
+\]
+with $\bar z$ the $\ell_2$-normalized shared code. The InfoNCE term makes row $i$ of the DNA
+shared code retrieve row $i$ of the protein shared code; because all variants are in BRCA1,
+negatives are in-gene and retrieval cannot exploit gene identity. Orthogonality decorrelates
+shared from private latents so that private codes capture modality-specific structure.
+
+\paragraph{Causal intervention.} For shared latent $f$, its DNA decoder column
+$D^{\mathrm{DNA}}_{s}[:,f]$ (rescaled to raw activation units) is a direction in Evo\,2's
+residual stream; the protein column is a direction in ESM-2's. During a variant forward pass
+we subtract the latent's reconstructed contribution at the variant position and re-score,
+in each model, comparing against a matched-norm random direction.
+
+\section{Experimental setup}
+\label{sec:setup}
+We use the BRCA1 SGE dataset \citep{findlay2018brca1}: \brcaNmis{} missense SNVs with
+continuous DMS function scores, a functional class (FUNC/INT/LOF), and (partial) ClinVar
+labels, mapped to UniProt P38398 (all \brcaNmis{} residue references validated). Variants
+fall in two well-separated domains (RING, $n{=}\brcaRING{}$; BRCT, $n{=}\brcaBRCT{}$),
+enabling a \emph{domain-disjoint} generalization split in addition to a residue-disjoint
+split. Evo\,2 is \evoModel{} and ESM-2 is \esmModel{}; we select layers
+$\ell_{\mathrm{DNA}}{=}\dnaLayer{}$ and $\ell_{\mathrm{PROT}}{=}\protLayer{}$ by a DMS probe
+(\S\ref{sec:results}). The crosscoder uses shared/private width \Kshared{}/\Kprivate{} with
+BatchTopK $k{=}\topk{}$. Baselines: single-model $\Delta$ linear probe, concatenation,
+linear CCA, and PLS. All numbers are on held-out splits.
+
+\section{Results}
+\label{sec:results}
+\input{results_body}
+
+\section{Discussion and limitations}
+Our study is deliberately scoped to one gene to eliminate gene-identity confounds; whether
+shared latents transfer across genes and assays is the key next step (ProteinGym extension).
+The paired-delta design assumes a well-defined variant position in both models, which holds
+for missense SNVs but not for splice/indel variants, which we can only analyze through the
+DNA branch. Causal effects are measured on the models' own likelihood scores, not on
+downstream phenotype.
+
+\section{Conclusion}
+Paired variant deltas plus a shared--private crosscoder expose sparse, causally active
+mechanisms shared between a genomic and a protein foundation model, and separate them from
+modality-specific ones---a step toward mechanistic, cross-modal interpretability of biological
+foundation models.
+
+\small
+\bibliographystyle{plainnat}
+\bibliography{refs}
+\end{document}
