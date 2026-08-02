@@ -35,7 +35,8 @@ saturation-genome-editing benchmark (\brcaNmis{} missense variants with deep mut
 scanning function scores) the shared representation (i)~retrieves the paired variant across
 modalities well above a strong linear-CCA baseline (Recall@1 \retRone{} vs.\ \retRoneCCA{}),
 (ii)~predicts DMS function scores better than CCA and the single-model DNA probe, and
-(iii)~partially transfers to a held-out protein domain (train BRCT, test RING). An ablation
+(iii)~transfers to held-out protein domains and, on a 15-gene ClinVar panel, to entirely
+\emph{unseen genes} (gene-disjoint pathogenicity AUROC \mgAuc{}). An ablation
 shows these gains come from a learned deep-CCA-style alignment, while the sparse codes provide
 interpretability: they predict loss-of-function (AUROC \lofShared{}) and domain, and the two
 models' functional directions map to the same axis in the shared space (cosine \cosDms{}, vs.\
@@ -76,10 +77,10 @@ an explicit \emph{shared / DNA-private / protein-private} factorization. Our con
 \item Learning on \emph{paired variant-induced deltas} with an explicit shared--private split,
 trained with reconstruction, cross-modal alignment, contrastive, and orthogonality losses
 under BatchTopK sparsity.
-\item A rigorous, multi-seed BRCA1 evaluation---cross-modal retrieval, residue- and
-domain-disjoint DMS prediction, biological probing of the shared and private codes, and a
-\emph{cross-model causal probe} with an honest negative result (aligned representations are
-not causally interchangeable).
+\item A rigorous, multi-seed evaluation---cross-modal retrieval, residue- and domain-disjoint
+DMS prediction, biological probing of the codes, a \emph{cross-model causal probe} with an
+honest negative result, and \emph{cross-gene} generalization to unseen genes on a 15-gene
+ClinVar panel.
 \item An extension (\S\ref{sec:c}) that diffs base vs.\ LoRA-disease-fine-tuned Evo\,2 with a
 Delta-Crosscoder, finding that narrow fine-tuning \emph{amplifies existing latents} rather than
 adding new ones.
@@ -211,11 +212,11 @@ with the reuse hypothesis. The amplified latents are only weakly LOF-selective (
 encouraging demonstration that Delta-Crosscoders can audit genomic-LM fine-tuning.
 
 \section{Discussion and limitations}
-We are deliberately explicit about what does and does not work. \textbf{(i)~Single gene.}
-The study is scoped to BRCA1 to eliminate the gene-identity confound that dominates raw
-cross-model alignment; whether the shared space transfers across genes and assays is the key
-next step (ProteinGym / multi-gene extension), and all quantitative claims should be read as a
-controlled proof of concept. \textbf{(ii)~Not a new SOTA predictor.} The shared code beats
+We are deliberately explicit about what does and does not work. \textbf{(i)~Assay coverage.}
+The \emph{DMS-level} analysis (function-score prediction, the shared functional axis) is on
+BRCA1, chosen to eliminate the gene-identity confound; we show cross-gene generalization on a
+15-gene ClinVar panel (\S\ref{sec:results}), but extending the continuous-DMS analysis to many
+assays (e.g.\ ProteinGym) is the natural next step. \textbf{(ii)~Not a new SOTA predictor.} The shared code beats
 the linear cross-modal baseline (CCA) and the DNA probe, but ESM-2 alone predicts missense DMS
 better; the value of the shared code is interpretability, cross-modal retrieval, and the
 shared-axis analysis, not raw accuracy. \textbf{(iii)~Representation- vs latent-level
