@@ -86,29 +86,43 @@ def main():
         start_i = int(ok.sum())
         print(f"Resuming from {start_i}/{n}")
 
+    # Windows are uniformly WINDOW bp, so we batch several variants (WT+mut each) per
+    # forward to amortize per-call overhead. var_batch variants -> 2*var_batch sequences.
+    var_batch = int(cfg.get("var_batch", 3))
     t0 = time.time()
-    for i in range(start_i, n):
-        r = df.iloc[i]
-        try:
-            ref_seq, var_seq, snv_idx = parse_sequences(seq_chr17, int(r.pos), r.ref, r.alt)
-        except AssertionError as e:
-            df.loc[i, "reason_code"] = str(e)
-            continue
-        # batch WT+mut (same length) into one forward
-        wt_ids = model.tokenizer.tokenize(ref_seq)
-        mut_ids = model.tokenizer.tokenize(var_seq)
-        ids = torch.tensor([wt_ids, mut_ids], dtype=torch.int).cuda()
-        with torch.inference_mode():
-            _, emb = model(ids, return_embeddings=True, layer_names=layers)
-        for l in layers:
-            for bi, tag in ((0, "wt"), (1, "mut")):
-                a = emb[l][bi]  # (L, D)
-                store[f"{l}_{tag}_exact"][i] = to_np(pool_exact(a, snv_idx))
-                store[f"{l}_{tag}_local"][i] = to_np(pool_local_mean(a, snv_idx, radius))
-        ok[i] = True
-        if (i + 1) % 100 == 0 or i == n - 1:
+    i = start_i
+    while i < n:
+        rows = []
+        seqs = []
+        idxs = []
+        j = i
+        while j < n and len(rows) < var_batch:
+            r = df.iloc[j]
+            try:
+                ref_seq, var_seq, snv_idx = parse_sequences(seq_chr17, int(r.pos), r.ref, r.alt)
+            except AssertionError as e:
+                df.loc[j, "reason_code"] = str(e); j += 1; continue
+            rows.append(j); idxs.append(snv_idx)
+            seqs.append(model.tokenizer.tokenize(ref_seq))
+            seqs.append(model.tokenizer.tokenize(var_seq))
+            j += 1
+        if rows:
+            ids = torch.tensor(seqs, dtype=torch.int).cuda()
+            with torch.inference_mode():
+                _, emb = model(ids, return_embeddings=True, layer_names=layers)
+            for bpos, (row, snv_idx) in enumerate(zip(rows, idxs)):
+                for l in layers:
+                    for off, tag in ((0, "wt"), (1, "mut")):
+                        a = emb[l][2 * bpos + off]  # (L, D)
+                        store[f"{l}_{tag}_exact"][row] = to_np(pool_exact(a, snv_idx))
+                        store[f"{l}_{tag}_local"][row] = to_np(pool_local_mean(a, snv_idx, radius))
+                ok[row] = True
+        i = j
+        if int(ok.sum()) % 100 < var_batch or i >= n:
             dt = time.time() - t0
-            print(f"  {i+1}/{n}  ({dt/ max(1,(i+1-start_i)):.2f}s/var, {dt/60:.1f}min)", flush=True)
+            done = int(ok.sum())
+            rate = dt / max(1, done - start_i)
+            print(f"  {i}/{n} (ok={done}, {rate:.2f}s/var, {dt/60:.1f}min)", flush=True)
             np.savez(ckpt, ok=ok, **store)
             df.to_parquet(idx_path)
 
