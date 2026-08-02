@@ -1,0 +1,8 @@
+model: evo2_7b
+table: data/brca1_variants.parquet
+chr17_fasta: /home/azureuser/evo/evo2/notebooks/brca1/GRCh37.p13_chr17.fna.gz
+out_dir: outputs/act/evo2
+layers: ["blocks.16.mlp.l3", "blocks.20.mlp.l3", "blocks.24.mlp.l3", "blocks.26.mlp.l3"]
+hidden: 4096
+local_radius: 8
+seed: 0

@@ -1,0 +1,8 @@
+esm_model: facebook/esm2_t33_650M_UR50D
+table: data/brca1_variants.parquet
+protein_fasta: data/brca1_P38398.fasta
+out_dir: outputs/act/esm
+layers: [6, 18, 30, 33]
+radius: 510
+local_radius: 8
+seed: 0
