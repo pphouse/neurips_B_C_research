@@ -118,7 +118,8 @@ def main():
             batch = perm[k:k + bs]
             logits = batch_logits(batch)
             loss = F.binary_cross_entropy_with_logits(logits, torch.tensor(y[batch], device=dev))
-            opt.zero_grad(); loss.backward(); opt.step()
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
         # eval
         core.eval()
         with torch.no_grad():
