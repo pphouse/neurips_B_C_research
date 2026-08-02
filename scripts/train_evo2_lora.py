@@ -89,35 +89,44 @@ def main():
     opt = torch.optim.AdamW(params, lr=cfg.get("lr", 1e-3), weight_decay=cfg.get("wd", 0.01))
     hook = ActHook(core, layer)
 
-    def variant_logit(pos, ref, alt):
-        ref_seq, var_seq, idx = make_window(seq_chr17, pos, ref, alt, W)
-        outs = []
-        for s in (ref_seq, var_seq):
-            ids = torch.tensor(evo.tokenizer.tokenize(s), dtype=torch.int).unsqueeze(0).cuda()
-            core.forward(ids)
-            outs.append(hook.h[0, idx].float())  # (D,) with grad
-        delta = outs[1] - outs[0]
-        return head(delta.unsqueeze(0)).squeeze()
+    bs = cfg.get("batch_variants", 8)
+
+    def batch_logits(idxs):
+        """Batched: build WT windows then mut windows, one forward, delta at W//2."""
+        wt_ids, mut_ids, idxs_pos = [], [], []
+        for i in idxs:
+            r = df.iloc[i]
+            ref_seq, var_seq, idx = make_window(seq_chr17, int(r.pos), r.ref, r.alt, W)
+            wt_ids.append(evo.tokenizer.tokenize(ref_seq))
+            mut_ids.append(evo.tokenizer.tokenize(var_seq))
+            idxs_pos.append(idx)
+        ids = torch.tensor(wt_ids + mut_ids, dtype=torch.int).cuda()
+        core.forward(ids)
+        B = len(idxs)
+        h = hook.h.float()  # (2B, L, D) with grad
+        pos = torch.tensor(idxs_pos, device=dev)
+        wt = h[torch.arange(B), pos]
+        mut = h[torch.arange(B, 2 * B), pos]
+        return head(mut - wt).squeeze(-1)  # (B,)
 
     epochs = cfg.get("epochs", 3)
     t0 = time.time(); log = []
     for ep in range(epochs):
         perm = np.random.permutation(tr)
         core.train()
-        for step, i in enumerate(perm):
-            r = df.iloc[i]
-            logit = variant_logit(int(r.pos), r.ref, r.alt)
-            loss = F.binary_cross_entropy_with_logits(logit, torch.tensor(y[i], device=dev))
+        for k in range(0, len(perm), bs):
+            batch = perm[k:k + bs]
+            logits = batch_logits(batch)
+            loss = F.binary_cross_entropy_with_logits(logits, torch.tensor(y[batch], device=dev))
             opt.zero_grad(); loss.backward(); opt.step()
         # eval
         core.eval()
         with torch.no_grad():
             def scores(idxs):
                 out = []
-                for i in idxs:
-                    r = df.iloc[i]
-                    out.append(torch.sigmoid(variant_logit(int(r.pos), r.ref, r.alt)).item())
-                return np.array(out)
+                for k in range(0, len(idxs), bs):
+                    out.append(torch.sigmoid(batch_logits(idxs[k:k + bs])).cpu().numpy())
+                return np.concatenate(out) if out else np.array([])
             str_ = scores(tr); ste = scores(te)
         au_tr = roc_auc_score(y[tr], str_) if len(np.unique(y[tr])) > 1 else float("nan")
         au_te = roc_auc_score(y[te], ste) if len(np.unique(y[te])) > 1 else float("nan")
