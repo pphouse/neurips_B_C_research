@@ -51,3 +51,9 @@ and cross-modal alignment, not raw accuracy.
 - **Delta-Crosscoder** reconstructs the base→ft difference better than a standard crosscoder (ΔFVE **+1.50**). Note absolute delta-FVE is negative (model diff is small/noisy for narrow fine-tuning).
 - **Taxonomy**: 246 shared, **10 amplified, 0 fine-tune-specific** → narrow fine-tuning *amplifies existing latents* (reuse hypothesis H1), doesn't add new ones. Amplified latents weakly LOF-selective (0.53).
 - Training note: epoch-1 collapse fixed with grad clipping + LR 2e-4; 1 epoch used.
+
+## Cross-gene generalization (multi-gene ClinVar) — NEW
+- 15 genes, 4316 balanced missense (path/benign), GRCh38 coords, UniProt-validated. Gene-disjoint: train 10 genes → test 5 held-out (ATM, BRCA2, CACNA1A, NSD1, PKD1), n_test=1439.
+- **Retrieval within unseen genes**: crosscoder R@1 0.066 / R@10 **0.340** ≈ deep-CCA 0.068/0.338 ≫ linear CCA 0.056/0.236. Alignment transfers to genes never seen in training.
+- **Gene-disjoint ClinVar AUROC**: shared code **0.886** > Evo2 probe 0.864, ESM probe 0.855; ≈ CCA 0.895.
+- Directly addresses the single-gene limitation.
