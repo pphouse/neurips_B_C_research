@@ -64,7 +64,7 @@ We make three observations. First, the object of interest is not the absolute
 representation of a sequence but the \emph{change} a variant induces; taking the paired
 wild-type$\to$mutant activation delta in each model cancels most sequence-identity nuisance
 and focuses on the variant's mechanism. Second, sparse dictionary methods (SAEs,
-crosscoders) provide an interpretable, causally manipulable basis; crosscoders in particular
+crosscoders) provide an interpretable basis; crosscoders in particular
 were designed to \emph{diff} representations across models \citep{lindsey2024crosscoders}.
 Third, restricting to a single gene (BRCA1) removes the dominant gene-identity shortcut,
 so any cross-modal alignment the model finds must reflect within-gene variant structure.
@@ -87,19 +87,29 @@ adding new ones.
 \end{itemize}
 
 \section{Related Work}
-\textbf{Genomic and protein language models.} Evo\,2 \citep{brixi2026evo2} is a StripedHyena
-genomic model with strong zero-shot VEP, including on BRCA1 SGE data; ESM-2
-\citep{lin2023esm2} is a protein masked-LM whose representations encode structure and
-function. \textbf{Sparse features and crosscoders.} Sparse autoencoders recover
-interpretable features in LMs and, via InterPLM \citep{simon2025interplm}, in protein LMs.
-Crosscoders \citep{lindsey2024crosscoders} extend SAEs to jointly encode multiple
-representation spaces and were introduced for cross-layer and model-diffing analysis; recent
-work applies them to cross-architecture diffing \citep{jiralerspong2026crossarch} and to
-narrow fine-tuning \citep{kassem2026delta,minder2025chat}. We instead diff across the
-central dogma---a DNA and a protein model of the \emph{same} variant. \textbf{Variant effect
-prediction.} DMS assays such as BRCA1 SGE \citep{findlay2018brca1} provide continuous
-functional labels; we use them not as a leaderboard target but to test whether shared latents
-carry mechanism.
+\textbf{Genomic/protein language models for variants.} Evo\,2 \citep{brixi2026evo2} is a
+StripedHyena genomic model with strong zero-shot VEP, including on BRCA1 SGE
+\citep{findlay2018brca1}; ESM-2 \citep{lin2023esm2} is a protein masked-LM whose
+representations encode structure and function and top protein DMS benchmarks
+\citep{notin2023proteingym}. Prior work compares or ensembles the \emph{outputs} of DNA and
+protein predictors \citep{benegas2025gpnmsa,notin2023proteingym}; we instead compare their
+internal \emph{representations}. \textbf{Sparse dictionaries and interpreting biological LMs.}
+Sparse autoencoders decompose LM activations into interpretable features
+\citep{bricken2023monosemanticity,cunningham2023sae,gao2024topk,bussmann2024batchtopk}, and
+this has been applied \emph{separately} to protein LMs (InterPLM \citep{simon2025interplm}) and
+to gene/genomic LMs \citep{guan2025genesae}. Interpreting a single biological LM is thus
+established; our contribution is to \emph{jointly} decompose two models of different
+modalities. \textbf{Crosscoders and model diffing.} Crosscoders \citep{lindsey2024crosscoders}
+jointly encode multiple representation spaces for cross-layer analysis and model diffing across
+fine-tunes \citep{minder2025chat,kassem2026delta} and across architectures
+\citep{jiralerspong2026crossarch}---but always within one modality (text LLMs). We apply the
+idea across the central dogma (nucleotides vs.\ amino acids), and reuse the Delta-Crosscoder
+\citep{kassem2026delta} to diff a base vs.\ disease-fine-tuned Evo\,2 (\S\ref{sec:c}).
+\textbf{Cross-modal alignment.} Methodologically, the component that drives our retrieval and
+prediction gains is a contrastive linear alignment---i.e.\ a deep-CCA \citep{andrew2013dcca}
+generalisation of CCA \citep{hotelling1936cca}; the crosscoder adds sparse, interpretable codes
+and the model-diffing extension. To our knowledge, aligning the representations of a genomic
+and a protein foundation model, on paired variant-induced deltas, is new.
 
 \begin{figure}[t]
 \centering
