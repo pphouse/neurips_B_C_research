@@ -11,7 +11,7 @@ alpha: 16
 dropout: 0.0
 lr: 0.0005
 wd: 0.01
-epochs: 3
+epochs: 2
 split_col: split_domain          # OOD: train BRCT -> test RING
 seed: 0
 batch_variants: 4
