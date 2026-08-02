@@ -162,11 +162,16 @@ continuous DMS function scores, a functional class (FUNC/INT/LOF), and (partial)
 labels, mapped to UniProt P38398 (all \brcaNmis{} residue references validated). Variants
 fall in two well-separated domains (RING, $n{=}\brcaRING{}$; BRCT, $n{=}\brcaBRCT{}$),
 enabling a \emph{domain-disjoint} generalization split in addition to a residue-disjoint
-split. Evo\,2 is \evoModel{} and ESM-2 is \esmModel{}; we select layers
-$\ell_{\mathrm{DNA}}{=}\dnaLayer{}$ and $\ell_{\mathrm{PROT}}{=}\protLayer{}$ by a DMS probe
-(\S\ref{sec:results}). The crosscoder uses shared/private width \Kshared{}/\Kprivate{} with
-BatchTopK $k{=}\topk{}$. Baselines: single-model $\Delta$ linear probe, concatenation,
-linear CCA, and PLS. All numbers are on held-out splits.
+split. Evo\,2 is \evoModel{} and ESM-2 is \esmModel{}. We select layers
+$\ell_{\mathrm{DNA}}{=}\dnaLayer{}$ and $\ell_{\mathrm{PROT}}{=}\protLayer{}$ and local-mean
+pooling ($\pm 8$) by a ridge DMS probe over a grid of layers/poolings on the full data (Evo\,2
+mid-to-late blocks and ESM-2 layer~33 gave the strongest single-model probes; deltas at the
+exact position alone are noisier than the local mean). The crosscoder uses shared/private
+width \Kshared{}/\Kprivate{}, alignment dimension \dalign{}, and BatchTopK $k{=}\topk{}$; the
+preprocessing (per-dimension standardization + \npca{}-component PCA) is fit on the training
+split and \emph{frozen} for all evaluation, which we found necessary for reproducibility.
+Baselines: single-model $\Delta$ linear probe, concatenation, PLS, linear CCA, and a pure
+deep-CCA (alignment head only). All numbers are on held-out splits, 5 seeds.
 
 \section{Results}
 \label{sec:results}

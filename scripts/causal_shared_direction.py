@@ -128,7 +128,9 @@ def main():
         esm_specific=float(df.esm_plus.abs().mean() - df.esm_rand.abs().mean()),
         # does injecting the functional direction correlate with DMS sign? (rescue effect)
         corr_evo_plus_dms=float(spearmanr(df.evo_plus, df.dms).correlation),
+        p_evo_plus_dms=float(spearmanr(df.evo_plus, df.dms).pvalue),
         corr_esm_plus_dms=float(spearmanr(df.esm_plus, df.dms).correlation),
+        p_esm_plus_dms=float(spearmanr(df.esm_plus, df.dms).pvalue),
     )
     save_json(summ, Path(args.run_dir) / "causal_shared_summary.json")
     print("SHARED CAUSAL SUMMARY:")
