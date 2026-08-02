@@ -14,4 +14,4 @@ wd: 0.01
 epochs: 3
 split_col: split_domain          # OOD: train BRCT -> test RING
 seed: 0
-batch_variants: 8
+batch_variants: 4

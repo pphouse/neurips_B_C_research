@@ -180,12 +180,27 @@ codes are complementary (protein-private best predicts domain).}
 \input{results_body}
 
 \section{Discussion and limitations}
-Our study is deliberately scoped to one gene to eliminate gene-identity confounds; whether
-shared latents transfer across genes and assays is the key next step (ProteinGym extension).
-The paired-delta design assumes a well-defined variant position in both models, which holds
-for missense SNVs but not for splice/indel variants, which we can only analyze through the
-DNA branch. Causal effects are measured on the models' own likelihood scores, not on
-downstream phenotype.
+We are deliberately explicit about what does and does not work. \textbf{(i)~Single gene.}
+The study is scoped to BRCA1 to eliminate the gene-identity confound that dominates raw
+cross-model alignment; whether the shared space transfers across genes and assays is the key
+next step (ProteinGym / multi-gene extension), and all quantitative claims should be read as a
+controlled proof of concept. \textbf{(ii)~Not a new SOTA predictor.} The shared code beats
+the linear cross-modal baseline (CCA) and the DNA probe, but ESM-2 alone predicts missense DMS
+better; the value of the shared code is interpretability, cross-modal retrieval, and the
+shared-axis analysis, not raw accuracy. \textbf{(iii)~Representation- vs latent-level
+interpretability.} The shared \emph{representation} predicts loss-of-function and domain
+(Fig.~\ref{fig:results}c), but individual sparse latents are only weakly annotation-selective,
+so we report collective probes rather than claim monosemantic features.
+\textbf{(iv)~Alignment $\neq$ causal exchange.} Representational alignment (cosine \sharedCos{})
+does not translate into an interchangeable causal handle: our activation injection moves ESM-2
+in a DMS-correlated direction but is non-specific in Evo\,2's likelihood. This may reflect the
+difficulty of steering Evo\,2's long-convolutional stack with a single-position edit as much
+as an absence of shared causal structure, and deserves dedicated study. \textbf{(v)~Scope.}
+The paired-delta design assumes a defined variant position in both models (missense SNVs);
+splice/indel variants can only be analyzed through the DNA branch. Methodologically,
+CentralDogma-$\Delta$CC combines deep-CCA-style alignment with a shared--private sparse
+autoencoder; its novelty is the cross-modal biological setting and the variant-delta framing
+rather than the individual components.
 
 \section{Conclusion}
 Paired variant deltas plus a shared--private crosscoder expose sparse, causally active
