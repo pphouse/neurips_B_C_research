@@ -35,14 +35,14 @@ saturation-genome-editing benchmark (\brcaNmis{} missense variants with deep mut
 scanning function scores) the shared representation (i)~retrieves the paired variant across
 modalities well above a strong linear-CCA baseline (Recall@1 \retRone{} vs.\ \retRoneCCA{}),
 (ii)~predicts DMS function scores better than CCA and the single-model DNA probe, and
-(iii)~generalizes to a held-out protein domain (train BRCT, test RING). Probing the codes,
-the shared representation predicts loss-of-function (AUROC \lofShared{}) and protein domain,
-while modality-private codes capture complementary structure; the two models' functional
-axes map to nearly the same shared latent (cosine \sharedCos{}). Finally, we test whether
-this representational alignment yields \emph{causal} cross-model handles: injecting the
-shared functional direction shifts ESM-2's variant score in a DMS-correlated way, but the
-same intervention on Evo\,2's likelihood is non-specific---representational alignment does
-not imply interchangeable causal control. We release code, activations, and the full harness.
+(iii)~partially transfers to a held-out protein domain (train BRCT, test RING). An ablation
+shows these gains come from a learned deep-CCA-style alignment, while the sparse codes provide
+interpretability: they predict loss-of-function (AUROC \lofShared{}) and domain, and the two
+models' functional directions map to the same axis in the shared space (cosine \cosDms{}, vs.\
+random pairs \cosRand{}). Finally, a causal probe is a negative result: injecting the shared
+functional direction gives no reliable cross-model control (non-specific in Evo\,2; only a
+marginal, non-significant trend in ESM-2), so representational alignment does not imply an
+interchangeable causal handle. We release code, activations, and the full harness.
 \end{abstract}
 
 \section{Introduction}
@@ -191,7 +191,7 @@ shared-axis analysis, not raw accuracy. \textbf{(iii)~Representation- vs latent-
 interpretability.} The shared \emph{representation} predicts loss-of-function and domain
 (Fig.~\ref{fig:results}c), but individual sparse latents are only weakly annotation-selective,
 so we report collective probes rather than claim monosemantic features.
-\textbf{(iv)~Alignment $\neq$ causal exchange.} Representational alignment (cosine \sharedCos{})
+\textbf{(iv)~Alignment $\neq$ causal exchange.} Representational alignment (cosine \cosDms{})
 does not translate into an interchangeable causal handle: our activation injection moves ESM-2
 in a DMS-correlated direction but is non-specific in Evo\,2's likelihood. This may reflect the
 difficulty of steering Evo\,2's long-convolutional stack with a single-position edit as much

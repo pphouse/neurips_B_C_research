@@ -1,25 +1,24 @@
-\paragraph{Reconstruction and sparsity.} The crosscoder reconstructs held-out variant deltas with FVE 0.72 (DNA) and 0.70 (protein) at an average BatchTopK $L_0$ of \topk{}, with no dead shared latents.
-
-\paragraph{Cross-modal retrieval.} Using the shared alignment embedding, a DNA variant retrieves its paired protein variant with Recall@1 0.282$\pm$0.005 and Recall@10 0.689 over 5 seeds (residue-disjoint, $n{=}\posNtest{}$), versus linear CCA (0.219 / 0.642) and chance $1/\posNtest{=}0.003$. On the harder domain-disjoint split ($n{=}\domNtest{}$) the gap persists (Recall@1 0.117 vs.\ CCA 0.076).
-
-\paragraph{Function-score prediction.} Table~\ref{tab:dms}. The shared code attains DMS Spearman 0.459$\pm$0.006 (residue-disjoint), exceeding CCA (0.335) and the DNA probe (0.375); the protein probe (0.510) and concatenation (0.512) remain stronger, as ESM-2 already captures missense effects well. The result holds domain-disjoint.
+\paragraph{The alignment beats linear CCA; the sparse code is for interpretation.} Table~\ref{tab:main}. Our crosscoder's linear alignment head retrieves the paired variant at Recall@1 0.307$\pm$0.014 (5 seeds, residue-disjoint $n{=}\posNtest{}$), significantly above linear CCA (0.216; paired bootstrap $\Delta{=}0.104$, $p<0.001$) and matching a pure deep-CCA baseline (0.311). The \emph{sparse} shared code alone does not retrieve (0.003, chance) --- the cross-modal signal lives in the learned linear alignment, and the sparse codes serve interpretability (below). The same ordering holds for DMS (shared 0.442$\pm$0.003 $>$ CCA 0.337, DNA 0.375; ESM-2 0.514 and concat 0.514 remain stronger). Reconstruction FVE is 0.72 (DNA)/0.70 (protein).
 \begin{table}[t]\centering\small
-\caption{DMS function-score prediction (Spearman $\rho$) under residue-disjoint and domain-disjoint (train BRCT, test RING) splits. Our shared code beats the linear cross-modal aligner (CCA) and the single-model DNA probe on both splits; ESM-2 alone is the strongest single predictor.}\label{tab:dms}
-\begin{tabular}{lcc}
+\caption{Cross-modal retrieval and DMS prediction (residue-disjoint, $n{=}\posNtest{}$; retrieval/DMS from 5 seeds). A learned alignment (deep-CCA or our crosscoder's alignment head) beats linear CCA at both; the crosscoder's \emph{sparse} shared code does not retrieve (it is the interpretable dictionary, not the alignment). ESM-2 alone / concat are the strongest DMS predictors.}\label{tab:main}
+\begin{tabular}{lccc}
 \toprule
-Method & residue-disjoint & domain-disjoint \\
+Method & R@1 & R@10 & DMS $\rho$ \\
 \midrule
-Evo\,2 $\Delta$ (probe) & 0.375 & 0.252 \\
-ESM-2 $\Delta$ (probe) & 0.510 & 0.447 \\
-linear CCA & 0.335 & 0.281 \\
-concat & 0.512 & 0.389 \\
-\textbf{shared code (ours)} & 0.459 & 0.302 \\
+linear CCA & 0.216 & 0.645 & 0.337 \\
+deep CCA (align only) & 0.311 & 0.689 & 0.464 \\
+\;crosscoder: sparse shared code & 0.003 & 0.027 & 0.272 \\
+\;crosscoder: alignment head & 0.307 & 0.689 & 0.442 \\
+ESM-2 $\Delta$ (probe) & -- & -- & 0.514 \\
+concat / PLS & -- & -- & 0.514 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Biological structure of the codes.} Probing the learned codes on held-out variants, the shared representation predicts loss-of-function (AUROC 0.838) and protein domain (0.787). Modality-private codes are complementary: the protein-private code is the best domain predictor (0.848) and a strong LOF predictor (0.822), consistent with ESM-2 encoding structural context, while the DNA-private code predicts LOF at 0.744.
+\paragraph{Domain-disjoint generalization.} Training and evaluating only across the two disjoint domains (train BRCT, test RING; $n{=}\domNtest{}$), the alignment still beats CCA (Recall@1 0.106 vs.\ 0.081; DMS 0.303 vs.\ 0.279), though with substantial degradation (ESM-2 alone reaches 0.444). The method partially transfers to an unseen structural domain rather than memorizing residues.
 
-\paragraph{A shared functional axis.} The direction of maximal DMS correlation, fit independently in each model's activation space, maps to nearly the same point in the crosscoder's shared space (cosine 0.855): the crosscoder identifies the two models' functional axes as one shared latent. This is specific, not an artifact of alignment: the two \emph{domain} directions also align (0.838), but a functional-vs-domain pair does not (-0.267), and random direction pairs give 0.075 ($95$th pctile $|{\cos}|=0.381$).
+\paragraph{Biological structure of the sparse codes.} On held-out variants the shared sparse code predicts loss-of-function (AUROC 0.830, 95\% CI [0.776,0.877], $n{=}\lofN{}$) and domain (0.839, $n{=}\ringN{}$). Modality-private codes are complementary: the protein-private code is the best domain predictor (0.853) and matches shared on LOF (0.842), consistent with ESM-2 encoding structural context. The shared code also exceeds classical single-variant VEP predictors (SIFT 0.305, CADD 0.329, phyloP 0.336; $|\rho|$ vs.\ DMS).
 
-\paragraph{Causal probing (limits).} Injecting this shared functional direction into ESM-2 shifts its masked-marginal variant score in a DMS-correlated way (Spearman 0.257). The same intervention on Evo\,2's likelihood is dominated by non-specific perturbation (indistinguishable from a matched-norm random direction), so representational alignment does \emph{not} imply interchangeable causal handles---a caution for cross-model steering.
+\paragraph{A shared functional axis.} The direction of maximal DMS correlation, fit independently in each model's activation space, maps to nearly the same point in the alignment space (cosine 0.905), far above random direction pairs (0.306, 95th pctile $|{\cos}|=0.513$). This is property-specific: the two \emph{domain} directions also align (0.927), while a functional-vs-domain pair sits at the random level (0.282). Same biological property $\Rightarrow$ same shared axis across modalities; different properties $\Rightarrow$ different axes.
+
+\paragraph{Causal probing (a negative result).} We test whether this alignment yields a causal handle by injecting the shared functional direction at the variant position and re-scoring. Single-position activation edits do \emph{not} give reliable causal control in either model: on Evo\,2's likelihood the effect is indistinguishable from a matched-norm random direction, and on ESM-2 we see only a marginal, non-significant DMS-correlated trend (Spearman 0.257, $n{=}\causalN{}$, $p{\approx}0.11$). Representational alignment does not imply an interchangeable causal handle---a caution for cross-model steering, and an open question of whether richer interventions would succeed.

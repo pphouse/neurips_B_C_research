@@ -44,6 +44,7 @@ def load_paired(
     pooling: str = "exact",
     norm_split_col: str = "split_position",
     n_pca: int | None = None,
+    pca_cache: str | Path | None = None,
 ) -> PairedDeltas:
     evo2_dir, esm_dir = Path(evo2_dir), Path(esm_dir)
     zd = np.load(evo2_dir / "evo2_store.npz")
@@ -66,24 +67,47 @@ def load_paired(
     prot_raw = _delta(zp, prot_layer, pooling)[rp].astype(np.float32)
 
     train = (merged[norm_split_col] == "train").to_numpy()
-    dna_std = dna_raw[train].std(0) + 1e-6
-    prot_std = prot_raw[train].std(0) + 1e-6
-    dna = dna_raw / dna_std
-    prot = prot_raw / prot_std
-
     dna_pca = prot_pca = None
-    if n_pca:
-        from sklearn.decomposition import PCA
-        pd_ = min(n_pca, int(train.sum()) - 1, dna.shape[1])
-        pp_ = min(n_pca, int(train.sum()) - 1, prot.shape[1])
-        pca_d = PCA(n_components=pd_, whiten=True).fit(dna[train])
-        pca_p = PCA(n_components=pp_, whiten=True).fit(prot[train])
-        dna = pca_d.transform(dna).astype(np.float32)
-        prot = pca_p.transform(prot).astype(np.float32)
-        # store un-whitened components so input_dir_to_raw recovers raw direction;
-        # whitening scale folded in so decoder direction maps correctly.
-        dna_pca = (pca_d.components_ * np.sqrt(pca_d.explained_variance_)[:, None]).astype(np.float32)
-        prot_pca = (pca_p.components_ * np.sqrt(pca_p.explained_variance_)[:, None]).astype(np.float32)
+
+    # Auto-derive a deterministic cache path so every caller with identical preprocessing
+    # params reuses one frozen std+PCA basis (train/eval consistency).
+    if pca_cache is None and n_pca:
+        key = f"{Path(evo2_dir).name}_{Path(esm_dir).name}_{dna_layer}_{prot_layer}_{pooling}_{norm_split_col}_p{n_pca}"
+        pca_cache = Path("outputs/pca_cache") / (key.replace("/", "-") + ".npz")
+    cache = Path(pca_cache) if pca_cache else None
+    if cache is not None and cache.exists():
+        # reuse a frozen preprocessing pipeline (std + PCA) so train and all eval/analysis
+        # share the exact same basis — essential because a re-fit PCA has sign/order
+        # instability on near-degenerate components that a trained linear head is not
+        # invariant to.
+        z = np.load(cache)
+        dna_std, prot_std = z["dna_std"], z["prot_std"]
+        dna = ((dna_raw / dna_std) @ z["dna_proj"]).astype(np.float32) if "dna_proj" in z else (dna_raw / dna_std)
+        prot = ((prot_raw / prot_std) @ z["prot_proj"]).astype(np.float32) if "prot_proj" in z else (prot_raw / prot_std)
+        dna_pca = z.get("dna_pca"); prot_pca = z.get("prot_pca")
+    else:
+        dna_std = dna_raw[train].std(0) + 1e-6
+        prot_std = prot_raw[train].std(0) + 1e-6
+        dna = dna_raw / dna_std
+        prot = prot_raw / prot_std
+        proj = {}
+        if n_pca:
+            from sklearn.decomposition import PCA
+            pd_ = min(n_pca, int(train.sum()) - 1, dna.shape[1])
+            pp_ = min(n_pca, int(train.sum()) - 1, prot.shape[1])
+            pca_d = PCA(n_components=pd_, whiten=True, svd_solver="full").fit(dna[train])
+            pca_p = PCA(n_components=pp_, whiten=True, svd_solver="full").fit(prot[train])
+            # projection matrix onto whitened PCs: (D, P)
+            dna_proj = (pca_d.components_.T / np.sqrt(pca_d.explained_variance_)).astype(np.float32)
+            prot_proj = (pca_p.components_.T / np.sqrt(pca_p.explained_variance_)).astype(np.float32)
+            dna = (dna @ dna_proj).astype(np.float32)
+            prot = (prot @ prot_proj).astype(np.float32)
+            dna_pca = (pca_d.components_ * np.sqrt(pca_d.explained_variance_)[:, None]).astype(np.float32)
+            prot_pca = (pca_p.components_ * np.sqrt(pca_p.explained_variance_)[:, None]).astype(np.float32)
+            proj = dict(dna_proj=dna_proj, prot_proj=prot_proj, dna_pca=dna_pca, prot_pca=prot_pca)
+        if cache is not None:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(cache, dna_std=dna_std, prot_std=prot_std, **proj)
 
     return PairedDeltas(
         variant_id=merged["variant_id"].to_numpy(),

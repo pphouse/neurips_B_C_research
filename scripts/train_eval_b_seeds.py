@@ -46,7 +46,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=5)
     args = ap.parse_args()
     cfg = load_yaml(args.config)
-    dev = "cuda"
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     run = Path(cfg["run_dir"]); run.mkdir(parents=True, exist_ok=True)
     sc = cfg.get("split_col", "split_position")
 
