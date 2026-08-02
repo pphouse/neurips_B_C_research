@@ -29,8 +29,23 @@ class LoRALinear(nn.Module):
 
     def forward(self, x):
         out = self.base(x)
-        lora = self.drop(x) @ self.A.t() @ self.B.t()
+        lora = self.drop(x).to(self.A.dtype) @ self.A.t() @ self.B.t()
         return out + self.scaling * lora.to(out.dtype)
+
+
+def defuse_inference_tensors(model: nn.Module) -> None:
+    """Evo2/vortex loads weights and hyena-filter buffers as *inference tensors* (created
+    under torch.inference_mode), which cannot be saved for backward. Re-materialize every
+    parameter and buffer as a normal (frozen) tensor so LoRA autograd works. Call BEFORE
+    inject_lora, then move the model to the device."""
+    with torch.inference_mode(False):
+        for m in model.modules():
+            for n, b in list(m._buffers.items()):
+                if b is not None:
+                    m._buffers[n] = b.detach().clone()
+            for n, p in list(m._parameters.items()):
+                if p is not None:
+                    m._parameters[n] = nn.Parameter(p.detach().clone(), requires_grad=False)
 
 
 def inject_lora(model: nn.Module, target_regex: str, r=8, alpha=16, dropout=0.0):
